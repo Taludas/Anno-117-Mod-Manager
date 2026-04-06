@@ -10,6 +10,9 @@ A desktop application for managing mods for **Anno 117: Pax Romana**. It covers 
 
 > Built with Python and Tkinter. Runs on Windows (packaged as a standalone `.exe`) and Linux (from source).
 
+
+**Hier geht es zum Readme auf Deutsch!** -> **[readme]**(README_de)
+
 ---
 
 ## Table of Contents
@@ -82,7 +85,7 @@ A desktop application for managing mods for **Anno 117: Pax Romana**. It covers 
 git clone https://github.com/taludas/anno-117-mod-manager.git
 cd anno117-mod-manager
 pip install pillow requests beautifulsoup4 tkinterdnd2
-python anno117-modmanger.py
+python anno117-modmanager.py
 ```
 
 The app stores its settings and logs under `~/.config/Anno 117 Mod Manager/` on Linux.
@@ -121,7 +124,7 @@ Aggregates news from multiple sources in a single feed:
 - **Anno Union** - official blog posts from the Anno development team.
 - **mod.io new mods** - recently published mods for Anno 117.
 - **mod.io subscription updates** - updates to mods you are **subscribed** to (requires mod.io login).
-- **Collection updates** - changes to collections you **follow**.
+- **Collection updates** - changes to collections you **follow** (requires mod.io login).
 - **Reddit r/anno** *(optional, enable in Settings)* - latest posts from the Anno subreddit.
 
 Each card shows the source badge, date, title, summary and an optional thumbnail. Cards for mod.io items include a shortcut button to jump directly to that mod in the Mod Browser or Collections tab.
@@ -293,7 +296,7 @@ Some mods expose configurable value options in their `modinfo.json` (colour valu
 
 #### Mod Storage
 
-Choose where the app looks for and installs mods:
+Choose where the app installs mods:
 
 | Mode | Path |
 |---|---|
