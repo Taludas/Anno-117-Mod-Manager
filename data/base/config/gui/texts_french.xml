@@ -207,7 +207,7 @@ ci-joint</Text>
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>S'il est désactivé, les nouveaux mods apparaîtront dans la liste mais resteront décochés jusqu'à ce qu'ils soient activés manuellement.</Text>
+    <Text>"Toujours désactiver" : Les mods nouvellement installés démarrent sans être cochés. "Suivre l'état actuel" : Maintient un mod actif s'il était déjà installé et actif auparavant.</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -890,11 +890,13 @@ Veuillez reconnecter votre compte dans les Paramètres pour continuer à utilise
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>Basculé sur Default. Tous les mods installés ont été activés.</Text>
+    <Text>Basculé sur la Default.
+
+Tous les mods installés ont été activés.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>Le profil "par défaut" est une exigence du système et ne peut pas être supprimé.</Text>
+    <Text>Le profil "Vanilla"/"Default" est une exigence du système et ne peut pas être supprimé.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1815,5 +1817,63 @@ Comment souhaitez-vous procéder ?</Text>
   <Text>
     <LineId>1999101464</LineId>
     <Text>collections {0} de {1}</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>Je suis passé à Vanilla.
+
+Tous les mods installés ont été désactivés. Le jeu peut maintenant être utilisé tel quel.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 Documents Folder (override)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>Nécessaire uniquement si votre dossier Documents a été déplacé vers un emplacement non standard. Sélectionnez le dossier "Anno 117 - Pax Romana" dans votre nouvel emplacement Documents.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>Clair</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>Toujours activer</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>Toujours désactiver</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>Suivre l'état actuel</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>Impossible de récupérer l'URL de téléchargement de mod.io.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Anno 117 Documents Dossier introuvable</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>L'application n'a pas pu trouver automatiquement votre dossier de documents Anno 117 - Pax Romana.
+
+Cela peut se produire lorsque votre dossier Documents a été déplacé vers un emplacement non standard.
+
+Veuillez sélectionner le dossier "Documents-Anno 117 - Pax Romana" dans la boîte de dialogue suivante.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>Sélectionner les documents/Anno 117 - Dossier Pax Romana</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>Ce mod est suivi sur mod.io, mais n'a pas encore été installé localement. Cliquez sur «Réinstaller» pour le télécharger.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>Ce mod est installé localement, mais vous n'y êtes plus abonné sur mod.io. Vous ne recevrez pas de notifications de mise à jour. Cliquez sur «Installer» pour vous réabonner.</Text>
   </Text>
 </Texts>

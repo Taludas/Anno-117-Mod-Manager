@@ -207,7 +207,7 @@ allegato</Text>
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>Se disattivato, i nuovi mod appariranno nell'elenco ma rimarranno deselezionati fino a quando non saranno abilitati manualmente.</Text>
+    <Text>"Disattiva sempre": Le mod appena installate vengono avviate in modo deselezionato. "Segui lo stato attuale": Mantiene attiva una mod se era già installata e attiva in precedenza.</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -890,11 +890,13 @@ Ricollegare il proprio account nelle Impostazioni per continuare a usare il Brow
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>Passato a Default. Tutte le mod installate sono state attivate.</Text>
+    <Text>Passato a Default.
+
+Tutte le mod installate sono state attivate.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>Il profilo "Predefinito" è un requisito di sistema e non può essere eliminato.</Text>
+    <Text>Il profilo "Vanilla"/"Default" è un requisito di sistema e non può essere eliminato.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1815,5 +1817,63 @@ Come vuoi procedere?</Text>
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0} di collezioni di {1}</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>Passato a Vanilla.
+
+Tutte le mod installate sono state disattivate. Il gioco può ora essere usato come se fosse non moddato.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 Cartella documenti (annullamento)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>È necessario solo se la cartella Documenti è stata spostata in una posizione non standard. Selezionare la cartella "Anno 117 - Pax Romana" nella nuova posizione Documenti.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>Libero</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>Attivare sempre</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>Disattivare sempre</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>Seguire lo stato attuale</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>Impossibile recuperare l'URL di download da mod.io.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Anno 117 Cartella documenti non trovata</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>L'applicazione non è riuscita a trovare automaticamente la cartella dei documenti Anno 117 - Pax Romana.
+
+Questo può accadere quando la cartella Documenti è stata spostata in una posizione non standard.
+
+Selezionare la cartella "DocumentiAnno 117 - Pax Romana" nella finestra di dialogo successiva.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>Seleziona documenti/Anno 117 - Cartella Pax Romana</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>Questa mod è stata aggiunta ai preferiti su mod.io, ma non è ancora stata installata localmente. Clicca su "Reinstalla" per scaricarla.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>Questa mod è installata localmente, ma non sei più iscritto su mod.io. Non riceverai notifiche di aggiornamento. Clicca su Installa per iscriverti nuovamente.</Text>
   </Text>
 </Texts>

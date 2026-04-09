@@ -207,7 +207,7 @@
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>如果禁用，新模式将出现在列表中，但在手动启用前保持未选中状态。</Text>
+    <Text>"始终停用"：新安装的模式开始时不选中。"遵循当前状态"：如果某个模式之前已经安装并激活，则保持其激活状态。</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -882,11 +882,13 @@
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>已切换至默认状态。所有已安装的 MOD 已激活。</Text>
+    <Text>切换到默认值。
+
+所有已安装的 MOD 已激活。</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>默认 "配置文件是系统要求，不能删除。</Text>
+    <Text>"Vanilla"/"Default"配置文件是系统要求，不能删除。</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1807,5 +1809,63 @@
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0}的{1}集合</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>改用香草
+
+所有已安装的 MOD 已停用。游戏现在可在无修改状态下使用。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 文件夹（覆盖）</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>只有在文档文件夹被移动到非标准位置时才需要。在新的文档文件夹中选择 "Anno 117 - Pax Romana "文件夹。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>清晰</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>始终启动</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>始终停用</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>遵循当前状态</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>无法从 mod.io 获取下载 URL。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>未找到 Anno 117 文件夹</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>应用程序无法自动找到您的 Anno 117 - Pax Romana 文档文件夹。
+
+当您的文档文件夹被重新定位到非标准位置时，可能会出现这种情况。
+
+请在下一个对话框中选择 "Documents/Anno 117 - Pax Romana "文件夹。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>选择文件/Anno 117 - 大同协会文件夹</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>您已在 mod.io 上订阅了此模组，但尚未在本地安装。点击“重新安装”以下载该模组。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>该模组已本地安装，但您在 mod.io 上已取消订阅。您将无法收到更新通知。请点击“安装”以重新订阅。</Text>
   </Text>
 </Texts>

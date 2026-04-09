@@ -207,7 +207,7 @@
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>비활성화하면 새 모드가 목록에 표시되지만 수동으로 활성화할 때까지 체크하지 않은 상태로 유지됩니다.</Text>
+    <Text>"항상 비활성화": 새로 설치된 모드가 선택되지 않은 상태로 시작됩니다. "현재 상태 따르기": 이전에 이미 설치되어 활성화된 모드가 있는 경우 모드를 활성 상태로 유지합니다.</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -882,11 +882,13 @@
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>기본값으로 전환했습니다. 설치된 모든 모드가 활성화되었습니다.</Text>
+    <Text>기본값으로 전환했습니다.
+
+설치된 모든 모드가 활성화되었습니다.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>'기본' 프로필은 시스템 요구 사항이며 삭제할 수 없습니다.</Text>
+    <Text>'바닐라'/'기본' 프로필은 시스템 요구 사항이며 삭제할 수 없습니다.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1807,5 +1809,63 @@ Anno 117의 기본 설치 디렉터리를 선택하세요.</Text>
   <Text>
     <LineId>1999101464</LineId>
     <Text>{1} 컬렉션 중 {0} 개</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>바닐라로 전환했습니다.
+
+설치된 모든 모드가 비활성화되었습니다. 이제 모드를 비활성화한 상태 그대로 게임을 사용할 수 있습니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 문서 폴더(재정의)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>문서 폴더를 비표준 위치로 옮긴 경우에만 필요합니다. 새 문서 위치에서 "Anno 117 - Pax Romana" 폴더를 선택합니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>지우기</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>항상 활성화</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>항상 비활성화</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>현재 상태 팔로우</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>Mod.io에서 다운로드 URL을 검색할 수 없습니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Anno 117 문서 폴더를 찾을 수 없음</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>앱에서 Anno 117 - Pax Romana 문서 폴더를 자동으로 찾을 수 없습니다.
+
+문서 폴더가 비표준 위치로 이전된 경우 이 문제가 발생할 수 있습니다.
+
+다음 대화 상자에서 "문서\안노 117 - 팍스 로마나" 폴더를 선택하세요.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>문서/안노 117 - 팍스 로마나 폴더를 선택합니다</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>이 모드는 mod.io에서 구독 중이지만 아직 로컬에 설치되지 않았습니다. ‘다시 설치’를 클릭하여 다운로드하세요.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>이 모드는 로컬에 설치되어 있지만, mod.io에서는 더 이상 구독 중이 아닙니다. 업데이트 알림을 받지 못하게 됩니다. ‘설치’를 클릭하여 다시 구독하세요.</Text>
   </Text>
 </Texts>

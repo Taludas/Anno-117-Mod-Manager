@@ -207,7 +207,7 @@ anexado</Text>
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>Se estiver desativado, os novos mods aparecerão na lista, mas permanecerão desmarcados até que sejam ativados manualmente.</Text>
+    <Text>"Sempre desativar": Os mods recém-instalados começam desmarcados. "Follow current state" (Seguir estado atual): Mantém um mod ativo se ele já estava instalado e ativo antes.</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -891,11 +891,13 @@ Reconecte sua conta nas Configurações para continuar usando o Mod Browser.</Te
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>Alternado para o padrão. Todos os mods instalados foram ativados.</Text>
+    <Text>Alternado para o Default.
+
+Todos os mods instalados foram ativados.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>O perfil "Padrão" é um requisito do sistema e não pode ser excluído.</Text>
+    <Text>O perfil "Vanilla"/"Default" é um requisito do sistema e não pode ser excluído.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1816,5 +1818,63 @@ Como você gostaria de proceder?</Text>
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0} de {1} coleções</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>Mudou para Vanilla.
+
+Todos os mods instalados foram desativados. O jogo agora pode ser usado como está no estado sem mods.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Pasta de documentos Anno 117 (substituição)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>Necessário somente se a pasta Documents tiver sido movida para um local não padrão. Selecione a pasta "Anno 117 - Pax Romana" em seu novo local de Documentos.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>Limpo</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>Sempre ativar</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>Sempre desativar</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>Acompanhar o estado atual</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>Não foi possível recuperar o URL de download do mod.io.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Pasta de documentos Anno 117 não encontrada</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>O aplicativo não pôde localizar automaticamente sua pasta de documentos Anno 117 - Pax Romana.
+
+Isso pode acontecer quando a pasta Documentos foi realocada para um local não padrão.
+
+Selecione a pasta "Documents\Anno 117 - Pax Romana" na próxima caixa de diálogo.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>Selecionar documentos/Anno 117 - Pasta Pax Romana</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>Este mod está adicionado aos favoritos no mod.io, mas ainda não foi instalado localmente. Clique em “Reinstalar” para baixá-lo.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>Este mod está instalado localmente, mas você não está mais inscrito nele no mod.io. Você não receberá notificações de atualização. Clique em Instalar para se inscrever novamente.</Text>
   </Text>
 </Texts>

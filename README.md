@@ -99,7 +99,8 @@ On the very first start the app presents a **language selection screen** before 
 After language selection the app will:
 
 1. **Locate Anno 117 automatically** - it searches the Windows registry, Steam library folders and common install paths. If it cannot find the game you will be prompted to select the installation directory manually.
-2. **Ask whether you want to enable mod.io integration** - this is optional. You can enable it later in Settings at any time.
+2. **Locate your Anno 117 documents folder** - on most systems this is `~/Documents/Anno 117 - Pax Romana`. If your Documents folder has been moved to a non-standard location, the app will search all drives and prompt you to point it to the right folder if it cannot be found automatically.
+3. **Ask whether you want to enable mod.io integration** - this is optional. You can enable it later in Settings at any time.
 
 ---
 
@@ -145,13 +146,16 @@ The primary tab for managing which mods are active when you launch the game.
 
   | Icon | Meaning |
   |---|---|
-  | ⚙ (gear) | Mod has customisable options - click the button directly under the mod name in the right info panel or visit the Tweaking tab manually |
+  | 🖋️ (golden pen) | Mod has customisable options — **clicking navigates directly to that mod in the Tweaking tab** |
   | ✘ (red X) | Active incompatibility conflict with another enabled mod |
   | ... (orange three dots) | A required dependency is not installed |
   | ⏳️ (orange hourglass) | This mod is deprecated by another active mod |
+  | ⚙ (teal mod.io logo) | Mod was installed via mod.io — **clicking opens that mod in the Mod Browser** |
+  | **!** (gold, before ⚙) | A newer version is available on mod.io — **clicking directly starts the update download** |
 
 - Mod names are coloured **red** for conflicts, **orange** for missing dependencies or deprecation.
 - Sub-mods (child folders inside a mod) appear indented below their parent and cannot be uninstalled on their own.
+- At startup the app checks mod.io for available updates for all your subscribed mods in the background. The gold **!** badge disappears as soon as you install the update.
 
 #### Sorting & Filtering
 
@@ -171,16 +175,19 @@ Clicking any mod opens its detail panel on the right:
 - **Known Issues** section if the mod lists any.
 - Folder path and file size on disk.
 - **Open Folder** - opens the mod's directory in Explorer / file manager.
+- **↻ Reinstall** *(mod.io mods only)* - fetches the latest version from mod.io and reinstalls it (useful for updates). Appears to the left of the Unsubscribe button.
 - **Uninstall Mod** - deletes the local files after confirmation. Warns if other active mods depend on it.
-- **Unsubscribe** - removes the mod.io subscription and uninstalls (for subscribed mods). Warns if other active mods depend on it.
+- **Unsubscribe** *(mod.io mods only)* - removes the mod.io subscription and uninstalls. Warns if other active mods depend on it.
 
 #### Presets
 
 Presets save and restore your full activation state (which mods are on or off).
 
-- The **Active Profile** dropdown at the top lists all saved presets plus the built-in **Default** (all mods active).
+- The **Active Profile** dropdown at the top lists all saved presets plus two built-in system presets:
+  - **Vanilla** — deactivates every installed mod in one click. Cannot be deleted.
+  - **Default** — activates every installed mod. Cannot be deleted.
 - **Save As New** - saves the current state under a new name.
-- **Delete** - permanently removes the selected preset. The Default preset cannot be deleted.
+- **Delete** - permanently removes the selected preset. System presets cannot be deleted.
 - Collection presets are created automatically when you follow a collection and are labelled *(Collection)*.
 
 ---
@@ -195,19 +202,21 @@ Browse and install mods directly from mod.io without leaving the app. Requires a
 - **Sort** - Most Downloads, Alphabetical, Newest, Highest Rating, Author.
 - **Tag filter** - dropdown populated from the game's tag list on mod.io; filter by any single tag.
 - **Subscribed** toggle - show only mods you are currently subscribed to.
+- The **✕** button resets both the search text and the tag filter simultaneously.
 
 #### Mod Tiles
 
-Each tile shows the mod thumbnail, name, author, download count, rating and file size. Clicking a tile opens the **detail popup** with the full description, gallery images and an **Install Mod** button.
+Each tile shows the mod thumbnail, name, author, download count, rating and file size. Clicking a tile opens the **detail popup** with the full description, gallery images and an **Install Mod** button. If you have subscribed outside of the Mod Browser to mods on mod.io, their subscribed status will be automatically synced, and a golden "!" is warning you, if you are subscribed, but do not have a local copy of the mod installed. Reinstall it via the ↻ Reinstall button and the warning vanishes. Same is true if you had the mod installed and subscribed through the Mod Browser but have cancelled the subscription outside it on mod.io - the "!" will prompt you to resubscribe to get the latest version and updates of the mod.
 
 #### Installation Flow
 
 Clicking **Install** on a tile or in the detail popup:
 
 1. Checks for required dependencies and downloads them first if missing, with a progress window.
-2. Downloads the mod archive to a temporary folder.
+2. Downloads the mod archive to a temporary folder (cleaned up automatically after install).
 3. Extracts and installs the mod into your configured mod folder.
 4. Subscribes your mod.io account so you receive future updates in the News feed.
+5. Switches to the Activation tab — the mod.io icon (⚙) appears next to the new mod's name immediately.
 
 Installed mods show a **↻ Reinstall** button (for updates or file repair) and a **★ Subscribed** button that turns into **Unsubscribe** on hover.
 
@@ -259,7 +268,7 @@ The app validates that the archive contains a `modinfo.json`, handles overwrite 
 
 Displays the `mod-loader.log` file written by the Anno Mod Loader after each game session.
 
-- Lines containing `ERROR` or are highlighted in red.
+- Lines containing `ERROR` are highlighted in red.
 - Lines containing `WARNING` are highlighted in yellow.
 - **Refresh Log** - reloads the file from disk.
 - **Copy Text to Clipboard** - copies the entire log, useful for sharing bug reports on Discord.
@@ -282,17 +291,22 @@ Some mods expose configurable value options in their `modinfo.json` (colour valu
 
 ### Settings Tab
 
+The Settings tab is scrollable — use the mouse wheel or the scrollbar on the right to reach all sections.
+
 #### General
 
+- **Language** - change the UI language. Takes effect immediately, but restart is recommended.
 - **Tutorial Infotips** - enables/disables hover tooltips throughout the app.
 - **Show r/anno posts in News feed** - includes Reddit posts in the News tab.
-- **Automatically activate newly installed mods** - when off, installed mods appear in the list but remain unchecked.
-- **Language** - change the UI language. Takes effect immediately, but restart is recommended.
+- **Automatically activate newly installed mods** - dropdown with three options:
+  - *Always activate* — newly installed mods are enabled immediately.
+  - *Always deactivate* — mods are added to the list but left disabled.
+  - *Follow current state* — if the mod was already active (e.g. a reinstall or update), it stays active; otherwise it stays disabled.
 
 #### Game Files
 
-- **Anno 117 Installation Directory** - set manually if auto-detection failed.
-- **Browse** - opens a directory picker to change f.e. after you moved the installation.
+- **Anno 117 Installation Directory** - set manually if auto-detection failed. You can select the game folder at any level — the parent of `Anno 117 - Pax Romana`, the folder itself, or the inner `mods` subfolder all work correctly.
+- **Anno 117 Documents Folder (override)** - only needed if your Windows Documents folder has been relocated to a non-standard location. Browse to your `Documents/Anno 117 - Pax Romana` folder. The **Clear** button is disabled when no override is set.
 
 #### Mod Storage
 
@@ -342,9 +356,12 @@ Files stored there:
 
 ## Presets
 
-A preset is a snapshot of your activation state - every mod and whether it is on or off. They are stored as plain `.txt` files in the `presets/` folder and can be shared and imported or backed up manually - just go to the settings tab and open the config folder and copy/paste prest files in `presets/`.
+A preset is a snapshot of your activation state - every mod and whether it is on or off. They are stored as plain `.txt` files in the `presets/` folder and can be shared and imported or backed up manually - just go to the settings tab and open the config folder and copy/paste preset files in `presets/`.
 
-The **Default** preset cannot be deleted and represents the state where every installed mod is active. Switching to it calls **Activate All**.
+Two system presets are always available and cannot be deleted:
+
+- **Vanilla** — deactivates every installed mod.
+- **Default** — activates every installed mod.
 
 When you follow a collection a preset named `<Collection Name> (Collection)` is created automatically.
 
@@ -390,7 +407,10 @@ Localisation has been checked by me for all MAIN app windows. Especially on pop-
 ## Troubleshooting
 
 **The app cannot find Anno 117**
-Go to Settings → Game Files → Browse and point it at the game's root installation folder (the one that contains the `mods` directory).
+Go to Settings → Game Files → Browse and point it at the game's installation folder. You can select at any level — the parent folder, `Anno 117 - Pax Romana` itself, or the inner `mods` subfolder all work.
+
+**The app cannot find my documents folder**
+If your Windows Documents folder has been relocated (e.g. to another drive), the app will search all drives automatically. If that fails, use the **Anno 117 Documents Folder (override)** field in Settings → Game Files to point it to your `Anno 117 - Pax Romana/mods` folder directly.
 
 **Mods are not loading in-game**
 Check your modloader log and also your active-profiles.txt in your `~/Documents/Anno 117 - Pax Romana/mods/` folder - if there is a **#** infront of the mod or a **# not installed** after it, the game does not load the mod. Check again in your Activation tab or ask on the Modding Discord for help.
@@ -400,6 +420,9 @@ These tabs require a mod.io API key. Go to Settings → mod.io Integration, ente
 
 **A mod shows a missing dependency warning**
 The mod lists another mod as a hard requirement in its `modinfo.json` that is not installed. Install the dependency first, or use the **Activate Missing** button in the dependency dialog.
+
+**A mod installed from the browser shows no mod.io icon / shows Uninstall instead of Unsubscribe**
+This can happen if the mod's name on mod.io differs significantly from the name in its `modinfo.json`. The app tries several fuzzy-matching strategies to link the two. If it consistently fails, please open an issue with the mod name.
 
 **Something went wrong and the app misbehaves**
 Check the debug log at Settings → View Debug Log. It captures all `print` output and exceptions from the current session. Open an issue and attach your log with a description of what you did to get it.

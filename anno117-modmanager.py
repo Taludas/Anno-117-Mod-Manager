@@ -102,10 +102,11 @@ ICONS = {
     "arrow_down":             "data/ui/4k/base/icon_content/generic/icon_2d_arrow_stylized_down.png",
     "x":                      "data/ui/4k/base/icon_content/generic/icon_2d_close_x_red.png",
     "tick":                   "data/ui/4k/base/icon_content/generic/icon_2d_check_mark.png",
-    "customized":             "data/ui/4k/base/icon_content/generic/icon_2d_load_options_gold.png",
+    "customized":             "data/ui/4k/base/icon_content/generic/icon_2d_rename_gold.png",
     "normal":                 "data/ui/4k/base/icon_content/generic/icon_2d_options.png",
     "missing_dependency":     "data/ui/4k/base/icon_content/generic/icon_2d_options_red.png",
     "deprecated":             "data/ui/4k/base/icon_content/generic/icon_2d_remaining_time_red.png",
+    "modio_mod":              "data/ui/4k/base/icon_content/modio/icon_2d_modio_logo_blue.png",
     # News tab
     "news_refresh":          "data/ui/4k/base/icon_content/generic/icon_2d_reset.png",
     "news_visit":            "data/ui/4k/base/icon_content/generic/icon_2d_region_global.png",
@@ -273,12 +274,20 @@ def T(line_id: int, *args) -> str:
 MODIO_GAME_ID = "11358"
 MODIO_BASE_URL = "https://g-11358.modapi.io/v1"
 
+# Virtual-scroll constants for the Mod Browser
+_VR_H   = 645   # pixel height per tile row (tile 620px + 10px top/bottom padding)
+_VR_C   = 3     # tile columns
+_VR_BUF = 2   # extra rows above/below viewport kept alive
+_VR_COL_H = 545  # pixel height per collections tile row (tile 520px + 10+15px padding)
+
+
+
 # --- Main Application Class ---
 def _open_path(path):
     """Opens a file or directory in the system's default application, cross-platform: Explorer on Windows, xdg-open on Linux, open on macOS."""
     try:
         if IS_WINDOWS:
-            _open_path(path)
+            os.startfile(path)
         elif IS_LINUX:
             subprocess.Popen(['xdg-open', path])
         else:
@@ -310,11 +319,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.mod_statuses = {}
         self.current_profile_name = "Default"
         self.current_search_query = ""
-        self.enable_new_mods_var = tk.BooleanVar(value=True)
+        self.enable_new_mods_var = tk.StringVar(value="on") # "on"=always activate, "off"=always deactivate, "keep"=preserve prior state
         self.show_load_order = False
         self.show_reddit_news_var = tk.BooleanVar(value=False)
         self.show_tooltips_var = tk.BooleanVar(value=True)
         self._endorsement_states = {}
+        self._modio_update_available: set = set() # local mod IDs with a newer version on mod.io
         self._subscription_states = {}
         self._subscription_modio_map = {}
         self._collection_follow_states = {}
@@ -329,6 +339,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if not os.path.exists(self.appdata_dir):
             os.makedirs(self.appdata_dir)
         self.settings_file = os.path.join(self.appdata_dir, "settings.json")
+        self.custom_docs_path = ""  # override for relocated Documents folder
 
         self.settings = {}
 
@@ -525,6 +536,38 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
+    def _find_or_prompt_docs_folder(self):
+        """Searches all available drives for the Documents/Anno 117 - Pax Romana mods folder. If found automatically, stores it; otherwise prompts the user to locate it."""
+        import glob as _glob
+        drives = self.get_drive_letters()
+        patterns = [
+            os.path.join("Documents", "Anno 117 - Pax Romana", "mods"),
+            os.path.join("*", "Documents", "Anno 117 - Pax Romana", "mods"),
+            os.path.join("*", "*", "Documents", "Anno 117 - Pax Romana", "mods"),
+        ]
+        for drive in drives:
+            for pat in patterns:
+                for match in _glob.glob(os.path.join(drive + os.sep, pat)):
+                    profile = os.path.join(match, "active-profile.txt")
+                    if os.path.exists(profile):
+                        # match is the /mods folder — step up to "Anno 117 - Pax Romana"
+                        self.custom_docs_path = os.path.normpath(os.path.dirname(match))
+                        self.update_mod_path_from_mode()
+                        self.save_settings()
+                        print(f"[docs] Auto-detected Anno docs folder: {self.custom_docs_path}")
+                        return
+        # Not found — prompt user
+        self._imperial_alert(T(1999101473), T(1999101474))
+        chosen = filedialog.askdirectory(title=T(1999101475))
+        if chosen:
+            chosen = os.path.normpath(chosen)
+            # Accept either "Anno 117 - Pax Romana" or its "mods" subfolder
+            if os.path.basename(chosen).lower() == "mods":
+                chosen = os.path.dirname(chosen)
+            self.custom_docs_path = chosen
+            self.update_mod_path_from_mode()
+            self.save_settings()
+
     def check_first_run(self):
         """Called once at startup after language selection. Locates the game executable, prompts the user if not found, configures mod paths and kicks off the mod.io setup flow when needed."""
         self.game_exe_path = self.find_anno_exe()
@@ -542,6 +585,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.game_exe_path = ""
 
         self.update_mod_path_from_mode()
+
+        # Robust docs folder detection — search all drives if default path has no profile
+        if not os.path.exists(self.active_profile_path) and not getattr(self, "custom_docs_path", ""):
+            self._find_or_prompt_docs_folder()
 
         if self.use_mod_browser is None:
             # Custom mod.io-branded prompt with logo
@@ -871,6 +918,51 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         with open(dest_path, 'w', encoding='utf-8') as f:
             f.writelines(clean_lines)
 
+    def _apply_preset_with_full_coverage(self, preset_path):
+        """Loads a preset file and writes active-profile.txt with explicit entries for every currently installed mod — active if listed in the preset, commented out otherwise. This prevents mods installed after the preset was saved from being implicitly active because they're absent from the file."""
+        # Parse which mod IDs the preset activates
+        preset_active = set()
+        preset_disabled = set()
+        header_lines = []
+        with open(preset_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith('##'):
+                    header_lines.append(line)
+                    continue
+                if 'EnableNewMods' in stripped:
+                    header_lines.append(line)
+                    continue
+                if '# not installed' in stripped.lower():
+                    continue
+                if stripped.startswith('#'):
+                    mod_id = stripped.lstrip('#').strip()
+                    # Only treat as a mod ID if it looks like one (no spaces, reasonable length)
+                    if mod_id and ' ' not in mod_id and len(mod_id) < 100:
+                        preset_disabled.add(mod_id)
+                    else:
+                        header_lines.append(line)
+                else:
+                    # Capture the active mods!
+                    mod_id = stripped.split('#')[0].strip() # Strip inline comments if any
+                    if mod_id and ' ' not in mod_id and len(mod_id) < 100:
+                        preset_active.add(mod_id)
+
+        # Build a complete profile covering every installed top-level mod
+        all_mods = self.get_all_mod_metadata()
+        out_lines = header_lines if header_lines else ['# Preset\n', '# EnableNewMods\n']
+        for m in all_mods:
+            if m.get('parent_path'):
+                continue
+            mid = m['id']
+            if mid in preset_active:
+                out_lines.append(f"{mid}\n")
+            else:
+                out_lines.append(f"# {mid}\n")
+
+        with open(self.active_profile_path, 'w', encoding='utf-8') as f:
+            f.writelines(out_lines)
+
     def load_preset(self):
         """Opens a file-picker so the user can import an external preset file, backs up the current profile, applies the loaded preset and refreshes the activation tab."""
         file_path = filedialog.askopenfilename(
@@ -885,7 +977,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     backup_path = self.active_profile_path + ".bak"
                     shutil.copy2(self.active_profile_path, backup_path)
 
-                shutil.copy2(file_path, self.active_profile_path)
+                self._apply_preset_with_full_coverage(file_path)
 
                 preset_name = os.path.basename(file_path).replace(".txt", "")
                 self.current_profile_name = preset_name
@@ -907,19 +999,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # Get all files except we reserve "Default"
         files = [f.replace(".txt", "") for f in os.listdir(self.presets_dir) if f.endswith(".txt") and f.lower() != "default"]
 
-        self.available_presets = ["Default"] + sorted(files)
+        self.available_presets = ["Vanilla", "Default"] + sorted(files)
 
     def on_preset_dropdown_change(self, event):
         """Fires when the user picks a different entry in the preset combobox. Switches to the Default profile or loads the selected named preset and refreshes the view."""
         selection = self.preset_combo.get()
 
-        if selection == "Default":
+        if selection == "Vanilla":
+            self._reset_to_no_mods_profile()
+            self._imperial_alert(T(1999101190), T(1999101465))
+        elif selection == "Default":
             self.reset_to_default_profile()
             self._imperial_alert(T(1999101190), T(1999101223))
         else:
             preset_path = os.path.join(self.presets_dir, f"{selection}.txt")
             if os.path.exists(preset_path):
-                shutil.copy2(preset_path, self.active_profile_path)
+                self._apply_preset_with_full_coverage(preset_path)
                 self.current_profile_name = selection
                 self._warn_missing_preset_mods(self.active_profile_path)
 
@@ -929,7 +1024,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def reset_to_default_profile(self):
         """Force-activates all discovered mods in the active-profile.txt"""
         all_mods = self.get_all_mod_metadata()
-        prefix = "" if self.enable_new_mods_var.get() else "# "
+        prefix = "" if self.enable_new_mods_var.get() in ("on", "keep") else "# "
         lines = ["# Anno 117 Default Profile\n", f"{prefix}EnableNewMods\n"]
 
         for mod in all_mods:
@@ -941,6 +1036,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             f.writelines(lines)
 
         self.current_profile_name = "Default"
+        self.save_settings()
+
+    def _reset_to_no_mods_profile(self):
+        """Deactivates all mods by out-commenting every mod ID in active-profile.txt."""
+        all_mods = self.get_all_mod_metadata()
+        lines = ["# Anno 117 No Mods Active Profile\n", "# EnableNewMods\n"]
+        for mod in all_mods:
+            if not mod.get('parent_path'):
+                lines.append(f"# {mod['id']}\n")
+        with open(self.active_profile_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        self.current_profile_name = "Vanilla"
         self.save_settings()
 
     def _warn_missing_preset_mods(self, profile_path):
@@ -973,7 +1080,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def delete_preset(self):
         """Asks for confirmation then permanently deletes the currently selected named preset file, reverts the active profile to Default and re-renders the activation tab."""
         selection = self.preset_combo.get()
-        if selection == "Default":
+        if selection in ("Vanilla", "Default"):
             self._imperial_alert(T(1999101191), T(1999101224), is_error=True)
             return
 
@@ -1086,7 +1193,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.mods = self.get_all_mod_metadata()
                     self.parse_active_profile()
 
-                    auto_activate = self.enable_new_mods_var.get()
+                    _av = self.enable_new_mods_var.get()
+                    if _av == "keep":
+                        # If the mod existed before, preserve its prior active state; otherwise default to inactive
+                        auto_activate = self.mod_statuses.get(new_mod_id, {}).get("active", False)
+                    else:
+                        auto_activate = (_av == "on")
 
                     if self._check_and_confirm_incompatible(new_mod_id):
                         self.toggle_mod_status(new_mod_id, auto_activate)
@@ -1102,8 +1214,19 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.mods = self.get_all_mod_metadata()
                 self.parse_active_profile()
 
+                # Apply any pending mod.io mapping now that self.mods is fresh
+                if getattr(self, '_pending_modio_mapping', None):
+                    modio_id, modio_name = self._pending_modio_mapping
+                    # If we successfully parsed the real ModID, map it directly without guessing!
+                    if new_mod_id:
+                        self._subscription_modio_map[new_mod_id] = str(modio_id)
+                        self._save_subscription_map()
+                    else:
+                        self._store_modio_mapping(modio_id, modio_name)
+                    self._pending_modio_mapping = None
+
                 if not silent:
-                    if new_mod_id and not self.enable_new_mods_var.get():
+                    if new_mod_id and self.enable_new_mods_var.get() == "off":
                         self._imperial_alert(T(1999101212), T(1999101389, folder_name))
                     else:
                         self._imperial_alert(T(1999101201), T(1999101354, folder_name))
@@ -1235,7 +1358,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 docu_ico = load_icon("docu", (24, 24))
                 self.docs_border = tk.Frame(self.sidebar, bg="#4c565f", highlightthickness=1, highlightbackground="#4c565f", bd=0)
                 self.docs_border.pack(fill="x", padx=10, pady=(2, 2))
-                self.docs_btn = tk.Button(self.docs_border, text="  Tutorial\n  Github", command=open_docs, image=docu_ico, compound="left", bg="#4c565f", fg="white", font=("Marcellus", 10, "bold"), relief="flat", bd=0, cursor="hand2", pady=8)
+                self.docs_btn = tk.Button(self.docs_border, text="  Github\n  Readme", command=open_docs, image=docu_ico, compound="left", bg="#4c565f", fg="white", font=("Marcellus", 10, "bold"), relief="flat", bd=0, cursor="hand2", pady=8)
                 self.docs_btn.pack(fill="both", expand=True)
                 self._bind_border_button_hover(self.docs_btn, "#4c565f", "#65717c")
 
@@ -1467,6 +1590,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         threading.Thread(target=self._fetch_anno_union_worker, args=(on_source_done,), daemon=True).start()
         threading.Thread(target=self._fetch_modio_new_mods_worker, args=(on_source_done,), daemon=True).start()
         threading.Thread(target=self._fetch_modio_updates_worker, args=(on_source_done,), daemon=True).start()
+        # Separately check for version updates in the activation tab (independent of news)
+        threading.Thread(target=self._check_modio_version_updates, daemon=True).start()
         if include_reddit:
             threading.Thread(target=self._fetch_reddit_worker, args=(on_source_done,), daemon=True).start()
         if include_collections:
@@ -1585,9 +1710,29 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 version = mod.get('modfile', {}).get('version', '')
                 excerpt = f"Version {version} is now available." if version else "An update is available."
 
-                summary = html.unescape(mod.get('summary', ''))
-                if summary:
-                    excerpt += f"  {summary[:120]}"
+                # Attempt to get the changelog for this specific file update
+                changelog = mod.get('modfile', {}).get('changelog', '')
+
+                if changelog:
+                    # Strip HTML tags, unescape entities, and clean up
+                    clean_changelog = html.unescape(re.sub(r'<[^<]+?>', '', changelog)).strip()
+                    # Replace line breaks with a separator so it flows nicely in the small card
+                    clean_changelog = re.sub(r'\s*\n\s*', ' | ', clean_changelog)
+                    # Standardize whitespace and replace newlines with a cleaner separator
+                    clean_changelog = re.sub(r'\s*\n\s*', ' • ', clean_changelog)
+
+                    if clean_changelog:
+                        limit = 500
+                        display_text = clean_changelog[:limit]
+                        if len(clean_changelog) > limit:
+                            display_text += "..."
+
+                        excerpt += f"\n\nChangelog: {display_text}"
+                else:
+                    # Fallback to the summary if the author didn't provide a changelog
+                    summary = html.unescape(mod.get('summary', ''))
+                    if summary:
+                        excerpt += f"  {summary[500]}"
 
                 items.append({
                     "title": f"Update: {html.unescape(mod.get('name', 'Unknown Mod'))}",
@@ -1606,6 +1751,43 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             print(f"mod.io updates fetch failed: {e}")
         finally:
             done_cb(items)
+
+    def _check_modio_version_updates(self):
+        """Background worker that runs once at startup. Compares the locally installed version (from modinfo.json) against the latest version on mod.io for each subscribed mod. Populates self._modio_update_available with local mod IDs that have a newer version available, then re-renders the activation tab."""
+        if not self.modio_token or not self._subscription_modio_map:
+            return
+        try:
+            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+            updated = set()
+            # Build reverse map: modio_id → local_mod_id
+            reverse_map = {v: k for k, v in self._subscription_modio_map.items()}
+            # Fetch latest info for subscribed mods in one call
+            url = f"{MODIO_BASE_URL}/me/subscribed?game_id=11358&_limit=100"
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code != 200:
+                return
+            for mod in res.json().get('data', []):
+                modio_id = str(mod.get('id', ''))
+                local_id = reverse_map.get(modio_id)
+                if not local_id:
+                    continue
+                remote_ver = (mod.get('modfile') or {}).get('version', '')
+                if not remote_ver:
+                    continue
+                # Find matching local mod
+                local_mod = next((m for m in self.mods if m['id'] == local_id), None)
+                if not local_mod:
+                    continue
+                local_ver = local_mod.get('version', '')
+                # Simple string comparison — flag if different (remote is newer)
+                def _norm(v): return v.strip().lstrip('vV')
+                if local_ver and remote_ver and _norm(local_ver) != _norm(remote_ver):
+                    updated.add(local_id)
+            self._modio_update_available = updated
+            if updated:
+                self.after(0, lambda: self.render_activation_tab() if self.current_tab == "Mod Activation" else None)
+        except Exception as e:
+            print(f"[update check] failed: {e}")
 
     def _fetch_reddit_worker(self, done_cb):
         """Fetches the latest posts from r/anno via Reddit's public JSON API."""
@@ -1692,13 +1874,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             mods = data.get('data', [])
             total_count = data.get('result_total', 0)
 
-            stats_text = T(1999101449, 1, total_count) if mods else T(1999101449, 0, total_count)
+            current_viewing = offset + len(mods)
+            stats_text = T(1999101449, current_viewing, total_count) if mods else T(1999101449, 0, total_count)
             self.after(0, lambda t=stats_text: self.browser_stats_lbl.config(text=t) if hasattr(self, 'browser_stats_lbl') and self.browser_stats_lbl.winfo_exists() else None)
 
             self.after(0, loading_lbl.destroy)
 
             if not mods:
-                self.after(0, lambda: tk.Label(parent_frame, text=T(1999101015), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM).pack(pady=40))
+                self.after(0, lambda: parent_frame.create_window((parent_frame.winfo_width()//2 or 400, 40), window=tk.Label(parent_frame, text=T(1999101015), bg=BG_MAIN, fg=FG_DIM), anchor="n"))
                 return
 
             self.after(0, lambda: self._build_mod_tiles(parent_frame, mods, total_count))
@@ -1915,49 +2098,73 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def _compute_load_order(self, top_mods):
         """Computes the Anno mod loader load order for active top-level mods.
 
-        Two phases:
-          Normal - mods whose LoadAfter list does NOT contain '*'
-          Late   - mods whose LoadAfter list DOES contain '*'
+        Phase split (determined by the mod's own LoadAfter only):
+          Normal — LoadAfter does NOT contain '*'
+          Late   — LoadAfter DOES contain '*'
 
-        Within each phase a topological sort is applied: mods listed in another mod's LoadAfter are loaded before it. Mods with no active dependencies within the phase are sorted alphabetically and processed first. Circular dependencies are resolved by appending remaining mods alphabetically.
+        Normal phase ordering (category+name alphabetical, observed in modloader.log):
+          Group 1 — mods whose LoadAfter references ONLY late/cross-phase mods
+                    (their dep is ignored but they still load before everything else)
+          Group 2 — mods with real same-phase LoadAfter deps (topological sort)
+          Group 3 — mods with no LoadAfter at all (category+name alphabetical)
+          Cross-phase LoadAfter entries are silently ignored for ordering.
 
-        Returns an ordered list of active mod entries.
+        Late phase ordering (ModID alphabetical, topological for late→late deps):
+          All late mods sorted by ModID; late→late LoadAfter respected,
+          cross-phase and '*' entries ignored.
         """
         statuses = self.mod_statuses
 
         active = [
             m for m in top_mods
             if not m.get('manually_disabled')
-            and statuses.get(m['id'], {}).get('active', self.enable_new_mods_var.get())
+            and bool(statuses.get(m['id'], {}).get('active',
+                     self.enable_new_mods_var.get() in ('on', 'keep')))
             and not statuses.get(m['id'], {}).get('uninstalled', False)
         ]
 
         installed_ids = {m['id'] for m in active}
+        normal = [m for m in active if '*' not in m.get('deps', {}).get('LoadAfter', [])]
+        late   = [m for m in active if '*' in  m.get('deps', {}).get('LoadAfter', [])]
 
-        def topo_sort(phase_mods):
+        def sort_normal(phase_mods):
             if not phase_mods:
                 return []
-            phase_ids  = {m['id'] for m in phase_mods}
-            by_id      = {m['id']: m for m in phase_mods}
-            in_degree  = {m['id']: 0 for m in phase_mods}
-            successors = {m['id']: [] for m in phase_mods}
+            phase_ids = {m['id'] for m in phase_mods}
+            by_id     = {m['id']: m for m in phase_mods}
+            cat_name  = lambda m: (m.get('category', '') + m['name'])
+
+            # Classify each mod
+            cross_phase_only = []   # Group 1: LoadAfter exists but all refs are late/missing
+            has_real_deps    = []   # Group 2: at least one same-phase LoadAfter dep
+            no_deps          = []   # Group 3: empty LoadAfter
 
             for m in phase_mods:
-                load_after = [
-                    la for la in m.get('deps', {}).get('LoadAfter', [])
-                    if la != '*' and la in phase_ids and la in installed_ids
-                ]
-                for la_id in load_after:
-                    successors[la_id].append(m['id'])
-                    in_degree[m['id']] += 1
+                la_all = [la for la in m.get('deps', {}).get('LoadAfter', []) if la != '*']
+                la_real = [la for la in la_all if la in phase_ids and la in installed_ids]
+                if not la_all:
+                    no_deps.append(m)
+                elif la_real:
+                    has_real_deps.append(m)
+                else:
+                    cross_phase_only.append(m)
 
-            # Seed the queue with zero-degree mods, alphabetically
+            # Group 1: cross-phase-only — load first, category+name order
+            result = sorted(cross_phase_only, key=cat_name)
+
+            # Group 2: real same-phase deps — Kahn's topological sort, category+name tiebreak
+            in_degree  = {m['id']: 0 for m in has_real_deps}
+            successors = {m['id']: [] for m in has_real_deps}
+            real_dep_ids = {m['id'] for m in has_real_deps}
+            for m in has_real_deps:
+                for la in m.get('deps', {}).get('LoadAfter', []):
+                    if la != '*' and la in real_dep_ids and la in installed_ids:
+                        successors[la].append(m['id'])
+                        in_degree[m['id']] += 1
             queue = sorted(
                 [mid for mid, deg in in_degree.items() if deg == 0],
-                key=lambda mid: (by_id[mid].get('category', '') + by_id[mid]['name'])
+                key=lambda mid: cat_name(by_id[mid])
             )
-
-            result = []
             visited = set()
             while queue:
                 current = queue.pop(0)
@@ -1965,28 +2172,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     continue
                 visited.add(current)
                 result.append(by_id[current])
-                newly_ready = []
-                for succ in successors[current]:
-                    in_degree[succ] -= 1
-                    if in_degree[succ] == 0:
-                        newly_ready.append(succ)
-                # Insert newly ready mods in alphabetical order
-                newly_ready.sort(key=lambda mid: (by_id[mid].get('category', '') + by_id[mid]['name']))
+                newly_ready = sorted(
+                    [s for s in successors[current] if in_degree[s] - 1 == 0],
+                    key=lambda mid: cat_name(by_id[mid])
+                )
+                for s in successors[current]:
+                    in_degree[s] -= 1
                 queue = newly_ready + queue
+            # Circular dep fallback
+            result.extend(sorted(
+                [m for m in has_real_deps if m['id'] not in visited],
+                key=cat_name))
 
-            # Circular dep fallback - append remaining alphabetically
-            remaining = sorted(
-                [m for m in phase_mods if m['id'] not in visited],
-                key=lambda m: (m.get('category', '') + m['name'])
-            )
-            result.extend(remaining)
+            # Group 3: no LoadAfter — category+name order
+            result.extend(sorted(no_deps, key=cat_name))
             return result
 
-        normal = [m for m in active if '*' not in m.get('deps', {}).get('LoadAfter', [])]
-        late   = [m for m in active if '*' in  m.get('deps', {}).get('LoadAfter', [])]
-
-        # Normal phase: topo_sort uses category+ModName (case-sensitive)
-        # Late phase: the loader sorts by ModID (case-sensitive)
         def sort_late(phase_mods):
             if not phase_mods:
                 return []
@@ -1996,19 +2197,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             successors = {m['id']: [] for m in phase_mods}
 
             for m in phase_mods:
-                load_after = [
-                    la for la in m.get('deps', {}).get('LoadAfter', [])
-                    if la != '*' and la in phase_ids and la in installed_ids
-                ]
-                for la_id in load_after:
-                    successors[la_id].append(m['id'])
-                    in_degree[m['id']] += 1
+                for la in m.get('deps', {}).get('LoadAfter', []):
+                    if la != '*' and la in phase_ids and la in installed_ids:
+                        successors[la].append(m['id'])
+                        in_degree[m['id']] += 1
 
             queue = sorted(
                 [mid for mid, deg in in_degree.items() if deg == 0],
-                key=lambda mid: mid   # ModID, case-sensitive
+                key=lambda mid: mid   # ModID alphabetical
             )
-
             result = []
             visited = set()
             while queue:
@@ -2021,16 +2218,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     [s for s in successors[current]],
                     key=lambda mid: mid
                 )
+                for s in successors[current]:
+                    in_degree[s] -= 1
                 queue = newly_ready + queue
 
-            remaining = sorted(
+            result.extend(sorted(
                 [m for m in phase_mods if m['id'] not in visited],
                 key=lambda m: m['id']
-            )
-            result.extend(remaining)
+            ))
             return result
 
-        return topo_sort(normal) + sort_late(late)
+        return sort_normal(normal) + sort_late(late)
 
     def render_activation_tab(self, select_id=None, search_query=None):
         """Renders the Mod Activation tab: preset management row, stats bar, search/filter row, sortable column header and the full scrollable mod list with checkboxes, icons and sub-mod rows."""
@@ -2162,7 +2360,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         def get_sorting_key(m):
             m_id = m['id']
             # A. Activation Group (0 for the top group, 1 for the bottom)
-            is_active = statuses.get(m_id, {}).get("active", self.enable_new_mods_var.get())
+            _status = statuses.get(m_id)
+            if _status is not None:
+                is_active = bool(_status.get("active", False))
+            else:
+                is_active = self.enable_new_mods_var.get() in ("on", "keep")
             active_group = 0 if is_active == self.sort_active_first else 1
 
             # B. Category Weight (Only applies if sort_cat_dir is not 0)
@@ -2290,7 +2492,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
             for mod in filtered_mods:
                 m_id = mod['id']
-                is_active = statuses.get(m_id, {}).get("active", self.enable_new_mods_var.get())
+                _status = statuses.get(m_id)
+                if _status is not None:
+                    is_active = bool(_status.get("active", False))
+                else:
+                    is_active = self.enable_new_mods_var.get() in ("on", "keep")
 
                 if is_active == self.sort_active_first and active_sep_needed:
                     label = T(1999101439) if self.sort_active_first else T(1999101438)
@@ -2448,55 +2654,105 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             cat_lbl.bind("<Leave>", on_leave)
             cat_lbl.bind("<Button-1>", on_click)
 
-        # Check if the mod has tweaked settings
-        has_tweaks = current_mod['id'] in getattr(self, 'active_options_cache', {})
+        has_tweaks   = current_mod['id'] in getattr(self, 'active_options_cache', {})
+        has_conflict = bool(self._get_active_incompatible_conflicts(current_mod['id']))
+        has_missing_dep = (is_active and not has_conflict and bool(self._get_missing_required_deps(current_mod['id'])))
+        has_deprecated  = (is_active and not has_conflict and not has_missing_dep and self._is_deprecated_by_active(current_mod['id']))
+        any_warning  = has_conflict or has_missing_dep or has_deprecated
+        is_modio_mod = (indent == 0 and not current_mod.get('parent_path') and current_mod['id'] in self._subscription_modio_map)
+        has_update   = current_mod['id'] in getattr(self, '_modio_update_available', set())
 
+        # All icon groups share the same 20 px start indent;
+        # subsequent icons in the same row follow at 0 px.
+        _ISTART = 20
+        _iused  = [False]
+        def _pad():
+            p = 0 if _iused[0] else _ISTART
+            _iused[0] = True
+            return p
+
+        # Gear (tweaks) — click selects row AND navigates to Tweaking tab
         if has_tweaks:
             _ico_gear = load_icon("customized", (16, 16))
             if _ico_gear:
                 gear_lbl = tk.Label(row, image=_ico_gear, bg=row_bg, cursor="hand2")
                 gear_lbl.image = _ico_gear
-                gear_lbl.pack(side="left", padx=(20, 2))
-                gear_lbl.bind("<Enter>", on_enter)
-                gear_lbl.bind("<Leave>", on_leave)
-                gear_lbl.bind("<Button-1>", on_click)
             else:
-                gear_lbl = tk.Label(row, text="⚙", font=FONT_XSMALL, bg=row_bg, fg=FG_DIM)
-                gear_lbl.pack(side="left", padx=(20, 2))
-                gear_lbl.bind("<Enter>", on_enter)
-                gear_lbl.bind("<Leave>", on_leave)
-                gear_lbl.bind("<Button-1>", on_click)
+                gear_lbl = tk.Label(row, text="⚙", font=FONT_XSMALL, bg=row_bg, fg=FG_DIM, cursor="hand2")
+            gear_lbl.pack(side="left", padx=(_pad(), 2))
+            gear_lbl.bind("<Enter>", on_enter)
+            gear_lbl.bind("<Leave>", on_leave)
+            gear_lbl.bind("<Button-1>",
+                lambda e, m=current_mod: [on_click(),
+                    self.switch_tab("Tweaking", select_id=m['id'])])
 
-        # Determine all warning states (only check active mods for dep/deprecated)
-        has_conflict    = bool(self._get_active_incompatible_conflicts(current_mod['id']))
-        has_missing_dep = (is_active and not has_conflict and bool(self._get_missing_required_deps(current_mod['id'])))
-        has_deprecated  = (is_active and not has_conflict and not has_missing_dep and self._is_deprecated_by_active(current_mod['id']))
-
-        any_warning = has_conflict or has_missing_dep or has_deprecated
-
-        def _warning_icon_lbl(icon_key, fallback_char, fallback_fg):
-            ico = load_icon(icon_key, (16, 16))
-            if ico:
-                w = tk.Label(row, image=ico, bg=row_bg, cursor="hand2")
-                w.image = ico
+        # Warning icons — informational only; no hand2 cursor, row-selection only
+        if any_warning:
+            _wk = ("x" if has_conflict else "missing_dependency" if has_missing_dep else "deprecated")
+            _wfb = ("✘" if has_conflict else "!" if has_missing_dep else "↓")
+            _wfg = "#e74c3c" if has_conflict else "#e67e22"
+            _ico_w = load_icon(_wk, (16, 16))
+            if _ico_w:
+                warn_lbl = tk.Label(row, image=_ico_w, bg=row_bg)
+                warn_lbl.image = _ico_w
             else:
-                w = tk.Label(row, text=fallback_char, font=FONT_XSMALL, bg=row_bg, fg=fallback_fg)
-            w.pack(side="left", padx=(20, 2))
-            w.bind("<Enter>", on_enter)
-            w.bind("<Leave>", on_leave)
-            w.bind("<Button-1>", on_click)
+                warn_lbl = tk.Label(row, text=_wfb, font=FONT_XSMALL,
+                                    bg=row_bg, fg=_wfg)
+            warn_lbl.pack(side="left", padx=(_pad(), 2))
+            warn_lbl.bind("<Enter>", on_enter)
+            warn_lbl.bind("<Leave>", on_leave)
+            warn_lbl.bind("<Button-1>", on_click)
 
-        if has_conflict:
-            _warning_icon_lbl("x", "✘", "#e74c3c")
-        elif has_missing_dep:
-            _warning_icon_lbl("missing_dependency", "...", "#e67e22")
-        elif has_deprecated:
-            _warning_icon_lbl("deprecated", "⏳️", "#e67e22")
+        # mod.io badge + update "!" — click opens Mod Browser for this specific mod
+        if is_modio_mod:
+            _mid = self._subscription_modio_map.get(current_mod['id'])
+            def _go_browser(e, mid=_mid, mname=current_mod['name']):
+                on_click()
+                if mid:
+                    setattr(self, '_browser_exact_id', int(mid))
+                    setattr(self, '_browser_from_news', True)
+                self.switch_tab("Mod Browser")
+                if hasattr(self, 'browser_search_var'):
+                    self.browser_search_var.set(mname)
+            if has_update:
+                def _quick_update(e, mid=_mid, mn=current_mod['name'], lid=current_mod['id']):
+                    on_click()
+                    def _fetch_and_install():
+                        try:
+                            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+                            res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mid}", headers=headers, timeout=10)
+                            res.raise_for_status()
+                            dl_url = (res.json().get('modfile') or {}).get('download', {}).get('binary_url')
+                            if dl_url:
+                                self.after(0, lambda u=dl_url, n=mn, m=mid: self._download_and_install(u, n, mod_id=m))
+                            else:
+                                self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101472), is_error=True))
+                        except Exception as ex:
+                            self.after(0, lambda: self._imperial_alert(T(1999101189), str(ex), is_error=True))
+                    if self._imperial_question(T(1999101213), T(1999101359, mn)):
+                        # Remove from update set immediately so the badge disappears
+                        self._modio_update_available.discard(lid)
+                        threading.Thread(target=_fetch_and_install, daemon=True).start()
+                upd_lbl = tk.Label(row, text="!", font=FONT_BOLD_SMALL, bg=row_bg, fg=FG_GOLD, cursor="hand2")
+                upd_lbl.pack(side="left", padx=(_pad(), 1))
+                upd_lbl.bind("<Enter>", on_enter)
+                upd_lbl.bind("<Leave>", on_leave)
+                upd_lbl.bind("<Button-1>", _quick_update)
+            _ico_mb = load_icon("modio_mod", (14, 14))
+            if _ico_mb:
+                mb_lbl = tk.Label(row, image=_ico_mb, bg=row_bg, cursor="hand2")
+                mb_lbl.image = _ico_mb
+            else:
+                mb_lbl = tk.Label(row, text="●", font=FONT_XSMALL, bg=row_bg, fg="#07C1D8", cursor="hand2")
+            mb_lbl.pack(side="left", padx=(_pad(), 2))
+            mb_lbl.bind("<Enter>", on_enter)
+            mb_lbl.bind("<Leave>", on_leave)
+            mb_lbl.bind("<Button-1>", _go_browser)
 
         name_fg = ("#e74c3c" if has_conflict else "#e67e22" if (has_missing_dep or has_deprecated) else FG_MAIN)
 
         lbl = tk.Label(row, text=current_mod['name'], font=FONT_SMALL, bg=row_bg, fg=name_fg, anchor="w")
-        lbl.pack(side="left", fill="x", expand=True, padx=(0 if (any_warning or has_tweaks) else 20, 0))
+        lbl.pack(side="left", fill="x", expand=True, padx=(0 if _iused[0] else _ISTART, 0))
         lbl.bind("<Enter>", on_enter)
         lbl.bind("<Leave>", on_leave)
         lbl.bind("<Button-1>", on_click)
@@ -2668,6 +2924,32 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 btn_unsub.pack(side="right", padx=15)
                 self._bind_hover(btn_unsub, FG_GOLD, "#f9d23a")
                 self._attach_tooltip(btn_unsub, T(1999101256))
+                # Reinstall button — fetches fresh dl_url from mod.io then triggers download
+                def _do_reinstall(mid=modio_id, mn=mod['name'], lid=mod['id']):
+                    def _fetch_and_install():
+                        try:
+                            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+                            res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mid}", headers=headers, timeout=10)
+                            res.raise_for_status()
+                            dl_url = (res.json().get('modfile') or {}).get('download', {}).get('binary_url')
+                            if dl_url:
+                                self._pending_modio_mapping = (str(mid), mn)
+                                self.after(0, lambda u=dl_url, n=mn: self._download_and_install(u, n))
+                                # Remove from update set immediately; re-check all after install settles
+                                self._modio_update_available.discard(lid)
+                                self.after(5000, lambda: threading.Thread(target=self._check_modio_version_updates, daemon=True).start())
+                            else:
+                                self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101472), is_error=True))
+                        except Exception as e:
+                            self.after(0, lambda: self._imperial_alert(T(1999101189), str(e), is_error=True))
+                    if self._imperial_question(T(1999101213), T(1999101359, mn)):
+                        threading.Thread(target=_fetch_and_install, daemon=True).start()
+                _ico_rei = load_icon("reinstall", (20, 20))
+                btn_reinstall = tk.Button(footer_btn_frame, text="" if _ico_rei else "↻", font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", padx=8, image=_ico_rei, compound="center" if _ico_rei else "none", command=_do_reinstall)
+                if _ico_rei: btn_reinstall.image = _ico_rei
+                btn_reinstall.pack(side="right", padx=(0, 4))
+                self._bind_hover(btn_reinstall, BG_MAIN, BG_HOVER)
+                self._attach_tooltip(btn_reinstall, T(1999101268))
             else:
                 _ico_uninst = load_icon("uninstall", (24, 24))
                 btn_uninstall = tk.Button(footer_btn_frame, text=T(1999101030), font=FONT_BOLD_SMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", padx=10, image=_ico_uninst, compound="left" if _ico_uninst else "none", command=lambda: self.uninstall_mod(mod['id']))
@@ -3156,21 +3438,60 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         widget.bind("<ButtonPress>", _hide, add="+")
 
     def render_settings_tab(self):
-        """Renders the Settings tab: general toggles, language picker, game file path, mod storage mode selector, mod.io authentication section and the footer with debug/config buttons."""
+        """Renders the Settings tab with a scrollable body."""
         for widget in self.main_content.winfo_children():
             widget.destroy()
 
-        tk.Label(self.main_content, text=T(1999101043), font=FONT_TITLE, bg=BG_MAIN, fg=FG_MAIN).pack(pady=(0, 20), anchor="w")
+        # Title — above the scroll area
+        tk.Label(self.main_content, text=T(1999101043), font=FONT_TITLE, bg=BG_MAIN, fg=FG_MAIN).pack(pady=(0, 10), anchor="w")
+
+        # Footer — pinned at bottom before canvas so pack(side="bottom") wins
+        footer_row = tk.Frame(self.main_content, bg=BG_MAIN)
+        footer_row.pack(side="bottom", fill="x", pady=10, padx=20)
+        tk.Label(footer_row, text=T(1999101373, self.settings_file), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(side="left")
+        _dlp = _debug_log_path
+        def _open_log():
+            if os.path.exists(_dlp): _open_path(_dlp)
+            else: self._imperial_alert(T(1999101199), T(1999101234))
+        def _open_config():
+            if os.path.exists(self.appdata_dir): _open_path(self.appdata_dir)
+            else: self._imperial_alert(T(1999101200), T(1999101235))
+        _bcf = tk.Button(footer_row, text=T(1999101062), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, cursor="hand2", relief="raised", padx=10, command=_open_config)
+        _bcf.pack(side="right")
+        self._bind_hover(_bcf, BG_SECTION, BG_HOVER)
+        self._attach_tooltip(_bcf, T(1999101423))
+        _blg = tk.Button(footer_row, text=T(1999101063), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, cursor="hand2", relief="raised", padx=10, command=_open_log)
+        _blg.pack(side="right")
+        self._bind_hover(_blg, BG_SECTION, BG_HOVER)
+        self._attach_tooltip(_blg, T(1999101424, _dlp))
+
+        # Scrollable body
+        _sc = tk.Canvas(self.main_content, bg=BG_MAIN, highlightthickness=0)
+        _sb = ttk.Scrollbar(self.main_content, orient="vertical", command=_sc.yview)
+        _sf = tk.Frame(_sc, bg=BG_MAIN)
+        _sc.configure(yscrollcommand=_sb.set)
+        _cw = _sc.create_window((0, 0), window=_sf, anchor="nw")
+        def _frame_cfg(e):
+            _sc.configure(scrollregion=_sc.bbox("all"))
+        _sf.bind("<Configure>", _frame_cfg)
+        def _canvas_cfg(e):
+            _sc.itemconfig(_cw, width=e.width)
+        _sc.bind("<Configure>", _canvas_cfg)
+        _sc.bind("<Enter>", lambda e: _sc.bind_all("<MouseWheel>",
+            lambda ev: _sc.yview_scroll(int(-1*(ev.delta/120)), "units")))
+        _sc.bind("<Leave>", lambda e: _sc.unbind_all("<MouseWheel>"))
+        _sb.pack(side="right", fill="y")
+        _sc.pack(side="left", fill="both", expand=True)
+        _mc = _sf  # all widgets below go into _mc
 
         display_root = ""
         if self.game_exe_path:
             display_root = os.path.dirname(os.path.dirname(os.path.dirname(self.game_exe_path)))
-
         self.game_path_var = tk.StringVar(value=os.path.normpath(display_root))
 
         # GENERAL
-        general_frame = tk.LabelFrame(self.main_content, text=T(1999101044), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
-        general_frame.pack(fill="x", pady=10)
+        general_frame = tk.LabelFrame(_mc, text=T(1999101044), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
+        general_frame.pack(fill="x", pady=10, padx=5)
 
         # Language selector
         lang_row = tk.Frame(general_frame, bg=BG_MAIN)
@@ -3218,16 +3539,26 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         tk.Checkbutton(general_frame, text=T(1999101047), variable=self.show_reddit_news_var, command=on_reddit_toggle, font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, selectcolor=BG_SECTION, activebackground=BG_MAIN, activeforeground=FG_MAIN, cursor="hand2").pack(anchor="w")
         tk.Label(general_frame, text=T(1999101048), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(anchor="w", padx=25)
 
-        # Automatically activate installed mods
-        def on_toggle():
+        # Automatically activate installed mods — tri-state dropdown
+        _auto_row = tk.Frame(general_frame, bg=BG_MAIN)
+        _auto_row.pack(anchor="w", fill="x", pady=(4, 0))
+        tk.Label(_auto_row, text=T(1999101049), font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN).pack(side="left")
+        _auto_opts = {T(1999101469): "on", T(1999101470): "off", T(1999101471): "keep"}
+        _cur_ad = next((d for d, v in _auto_opts.items() if v == self.enable_new_mods_var.get()), T(1999101469))
+        _adv = tk.StringVar(value=_cur_ad)
+        _am = tk.OptionMenu(_auto_row, _adv, *_auto_opts.keys())
+        _am.config(font=FONT_XSMALL, bg=BG_SECTION, fg=FG_MAIN, highlightthickness=0, width=20)
+        _am["menu"].config(bg=BG_SECTION, fg=FG_MAIN)
+        _am.pack(side="left", padx=10)
+        def _on_ac(*_):
+            self.enable_new_mods_var.set(_auto_opts[_adv.get()])
             self.update_enable_new_mods_in_file()
-
-        tk.Checkbutton(general_frame, text=T(1999101049), variable=self.enable_new_mods_var, command=on_toggle, font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, selectcolor=BG_SECTION, activebackground=BG_MAIN, activeforeground=FG_MAIN, cursor="hand2").pack(anchor="w")
+        _adv.trace_add("write", _on_ac)
         tk.Label(general_frame, text=T(1999101050), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(anchor="w", padx=25)
 
         # GAME INSTALLATION PATH
-        path_frame = tk.LabelFrame(self.main_content, text=T(1999101051), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
-        path_frame.pack(fill="x", pady=10)
+        path_frame = tk.LabelFrame(_mc, text=T(1999101051), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
+        path_frame.pack(fill="x", pady=10, padx=5)
 
         tk.Label(path_frame, text=T(1999101052), font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN).pack(anchor="w")
 
@@ -3239,6 +3570,44 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         browse_btn.pack(side="right", padx=(10, 0))
         self._bind_hover(browse_btn, BG_SECTION, BG_HOVER)
         self._attach_tooltip(browse_btn, T(1999101262))
+
+        # Custom Anno 117 Documents folder override
+        tk.Label(path_frame, text=T(1999101466), font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN).pack(anchor="w", pady=(10, 0))
+        tk.Label(path_frame, text=T(1999101467), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(anchor="w", padx=25)
+        _dov_row = tk.Frame(path_frame, bg=BG_MAIN)
+        _dov_row.pack(fill="x", pady=4)
+        _docs_var = tk.StringVar(value=getattr(self, "custom_docs_path", ""))
+        tk.Entry(_dov_row, textvariable=_docs_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, relief="flat").pack(side="left", fill="x", expand=True, ipady=4)
+        def _browse_docs():
+            ch = filedialog.askdirectory(title=T(1999101475))
+            if ch:
+                # Accept either the "Anno 117 - Pax Romana" folder or its "mods" subfolder
+                ch = os.path.normpath(ch)
+                if os.path.basename(ch).lower() == "mods":
+                    ch = os.path.dirname(ch)  # step up to "Anno 117 - Pax Romana"
+                self.custom_docs_path = ch
+                _docs_var.set(self.custom_docs_path)
+                _clr.config(state="normal")
+                self.update_mod_path_from_mode()
+                self.save_settings()
+                # Refresh the mod storage radio label to show the updated path
+                new_docs_display = os.path.normpath(
+                    os.path.join(self.custom_docs_path, "mods"))
+                for w in loc_frame.winfo_children():
+                    if isinstance(w, tk.Radiobutton):
+                        cfg = w.config()
+                        if "Documents" in str(cfg.get("value", [""])):
+                            w.config(text=T(1999101371, new_docs_display))
+                            break
+        def _clear_docs():
+            self.custom_docs_path = ""
+            _docs_var.set("")
+            _clr.config(state="disabled")
+            self.update_mod_path_from_mode()
+            self.save_settings()
+        tk.Button(_dov_row, text=T(1999101053), font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, cursor="hand2", command=_browse_docs).pack(side="left", padx=(6, 0))
+        _clr = tk.Button(_dov_row, text=T(1999101468), font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM, cursor="hand2" if getattr(self, "custom_docs_path", "") else "arrow", state="normal" if getattr(self, "custom_docs_path", "") else "disabled", command=_clear_docs)
+        _clr.pack(side="left", padx=(4, 0))
 
         # MOD INSTALLATION PATH
         loc_frame = tk.Frame(path_frame, bg=BG_MAIN)
@@ -3259,8 +3628,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         tk.Radiobutton(loc_frame, text=T(1999101372, game_display), variable=self.mod_loc_mode, value="Game", font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, selectcolor=BG_SECTION, cursor="hand2", command=self.save_settings).pack(anchor="w", pady=5)
 
         # MOD.IO SETTINGS
-        auth_frame = tk.LabelFrame(self.main_content, text=T(1999101055), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
-        auth_frame.pack(fill="x", pady=10)
+        auth_frame = tk.LabelFrame(_mc, text=T(1999101055), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
+        auth_frame.pack(fill="x", pady=10, padx=5)
         logo_path = resource_path("data/ui/4k/base/icon_content/modio/icon_2d_modio_logo_blue_white.png")
         if os.path.exists(logo_path):
             try:
@@ -3320,48 +3689,29 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._bind_hover(connect_btn, "#2ecc71", "#36e780")
             self._attach_tooltip(connect_btn, T(1999101265))
 
-        footer_row = tk.Frame(self.main_content, bg=BG_MAIN)
-        footer_row.pack(side="bottom", fill="x", pady=20, padx=20)
-
-        tk.Label(footer_row, text=T(1999101373, self.settings_file), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(side="left")
-
-        def _open_log():
-            if os.path.exists(_debug_log_path):
-                _open_path(_debug_log_path)
-            else:
-                self._imperial_alert(T(1999101199), T(1999101234))
-
-        def _open_config():
-            if os.path.exists(self.appdata_dir):
-                _open_path(self.appdata_dir)
-            else:
-                self._imperial_alert(T(1999101200), T(1999101235))
-
-        btn_configfolder = tk.Button(footer_row, text=T(1999101062), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, cursor="hand2", relief="raised", padx=10, command=_open_config)
-        btn_configfolder.pack(side="right")
-        self._bind_hover(btn_configfolder, BG_SECTION, BG_HOVER)
-        self._attach_tooltip(btn_configfolder, T(1999101423))
-        btn_log = tk.Button(footer_row, text=T(1999101063), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, cursor="hand2", relief="raised", padx=10, command=_open_log)
-        btn_log.pack(side="right")
-        self._bind_hover(btn_log, BG_SECTION, BG_HOVER)
-        self._attach_tooltip(btn_log, T(1999101424, _debug_log_path))
 
     def set_game_path_from_root(self, root_path):
         """Given an Anno 117 installation root directory, validates that Anno117.exe exists inside it and updates game_exe_path and all derived mod paths accordingly. Returns True on success."""
         if not root_path:
             return False
 
-        potential_exe = os.path.normpath(os.path.join(root_path, "Bin", "Win64", "Anno117.exe"))
+        candidates = [
+            os.path.join(root_path, "Bin", "Win64", "Anno117.exe"),
+            os.path.join(root_path, "Anno 117 - Pax Romana", "Bin", "Win64", "Anno117.exe"),
+        ]
 
-        if os.path.exists(potential_exe):
-            self.game_exe_path = potential_exe
-            if hasattr(self, 'game_path_var'):
-                self.game_path_var.set(potential_exe)
-            self.save_settings()
-            return True
-        else:
-            self._imperial_alert(T(1999101284), T(1999101395, root_path), is_error= True)
-            return False
+        for candidate in candidates:
+            candidate = os.path.normpath(candidate)
+            if os.path.exists(candidate):
+                self.game_exe_path = candidate
+                pax_romana_dir = os.path.dirname(os.path.dirname(os.path.dirname(candidate)))
+                if hasattr(self, 'game_path_var'):
+                    self.game_path_var.set(os.path.normpath(pax_romana_dir))
+                self.save_settings()
+                return True
+
+        self._imperial_alert(T(1999101284), T(1999101395, root_path), is_error=True)
+        return False
 
     def browse_game_path(self):
         """Opens a directory picker and passes the chosen path to set_game_path_from_root."""
@@ -3371,9 +3721,25 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.set_game_path_from_root(normalized_path)
 
     def update_mod_path_from_mode(self):
-        """Recalculates mod_path and the active-profile/log/options file paths based on the current mod_loc_mode setting (User Documents or Game Directory)."""
-        user_docs = os.path.expanduser("~/Documents")
-        docs_base = os.path.normpath(os.path.join(user_docs, "Anno 117 - Pax Romana", "mods"))
+        """Recalculates mod_path and the active-profile/log/options file paths. Respects a custom Anno 117 documents folder if the user has configured one."""
+        if getattr(self, 'custom_docs_path', ''):
+            docs_base = os.path.normpath(self.custom_docs_path)
+        else:
+            if IS_WINDOWS:
+                user_docs = os.path.expanduser("~/Documents")
+            else:
+                # On Linux the game runs under Proton; try the Proton documents path first
+                home = os.path.expanduser("~")
+                proton_docs = None
+                _compat_root = os.path.join(home, ".steam", "steam", "steamapps", "compatdata")
+                if os.path.isdir(_compat_root):
+                    for _appid in os.listdir(_compat_root):
+                        _candidate = os.path.join(_compat_root, _appid, "pfx", "drive_c", "users", "steamuser", "Documents")
+                        if os.path.isdir(os.path.join(_candidate, "Anno 117 - Pax Romana")):
+                            proton_docs = _candidate
+                            break
+                user_docs = proton_docs or os.path.join(home, "Documents")
+            docs_base = os.path.normpath(os.path.join(user_docs, "Anno 117 - Pax Romana", "mods"))
 
         self.active_profile_path = os.path.join(docs_base, "active-profile.txt")
         self.log_path = os.path.join(docs_base, "mod-loader.log")
@@ -3403,7 +3769,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         with open(self.active_profile_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
-        new_val = self.enable_new_mods_var.get()
+        new_val = self.enable_new_mods_var.get() in ("on", "keep")
         found = False
         updated_lines = []
 
@@ -3430,9 +3796,13 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # 1. Update the game path logic
         ui_path = self.game_path_var.get() if hasattr(self, 'game_path_var') else self.game_exe_path
         if ui_path and not ui_path.lower().endswith(".exe"):
-            potential_exe = os.path.join(ui_path, "Bin", "Win64", "Anno117.exe")
-            if os.path.exists(potential_exe):
-                self.game_exe_path = os.path.normpath(potential_exe)
+            for sub in [
+                os.path.join(ui_path, "Anno 117 - Pax Romana", "Bin", "Win64", "Anno117.exe"),
+                os.path.join(ui_path, "Bin", "Win64", "Anno117.exe"),
+            ]:
+                if os.path.exists(sub):
+                    self.game_exe_path = os.path.normpath(sub)
+                    break
         else:
             self.game_exe_path = ui_path
 
@@ -3449,7 +3819,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             "modio_token": getattr(self, "modio_token", ""),
             "modio_terms_agreed": getattr(self, "modio_terms_agreed", False),
             "modio_token_expires": getattr(self, "modio_token_expires", 0),
-            "modio_declined": getattr(self, "modio_declined", False)
+            "modio_declined": getattr(self, "modio_declined", False),
+            "custom_docs_path": getattr(self, "custom_docs_path", ""),
+            **({"use_mod_browser": self.settings["use_mod_browser"]}
+               if self.settings.get("use_mod_browser") is not None else {})
         })
 
         # 3. Save the entire dictionary to the file
@@ -3476,7 +3849,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.modio_token_expires = self.settings.get("modio_token_expires", 0)
                     mode = self.settings.get("mod_location_mode", "Documents")
                     self.mod_loc_mode.set(mode)
-                    self.enable_new_mods_var.set(self.settings.get("enable_new_mods", True))
+                    self.custom_docs_path = self.settings.get("custom_docs_path", "")
+                    _raw = self.settings.get("enable_new_mods", "on")
+                    if isinstance(_raw, bool): _raw = "on" if _raw else "off"
+                    self.enable_new_mods_var.set(_raw)
                     self.show_reddit_news_var.set(self.settings.get("show_reddit_news", False))
                     self.show_tooltips_var.set(self.settings.get("show_tooltips", True))
                     self.current_profile_name = self.settings.get("current_profile_name", "Default")
@@ -3621,7 +3997,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         quest_win.bind("<Escape>",  lambda e: _select(False))
         self.wait_window(quest_win)
         return result["ans"]
-    
+
     # ==========================================
     # --- MOD.IO INTEGRATION ---
     # ==========================================
@@ -4205,18 +4581,40 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # --- SCROLLABLE AREA ---
         self.browser_canvas = tk.Canvas(self.main_content, bg=BG_MAIN, highlightthickness=0)
         scrollbar = tk.Scrollbar(self.main_content, orient="vertical", command=self.browser_canvas.yview)
-        self.browser_scroll_frame = tk.Frame(self.browser_canvas, bg=BG_MAIN)
 
-        self.browser_scroll_frame.bind("<Configure>", lambda e: self.browser_canvas.configure(scrollregion=self.browser_canvas.bbox("all")))
-        self.browser_canvas.create_window((0, 0), window=self.browser_scroll_frame, anchor="nw")
         self.browser_canvas.configure(yscrollcommand=scrollbar.set)
         self.browser_canvas.pack(side="left", fill="both", expand=True, padx=20)
         scrollbar.pack(side="right", fill="y")
+
+        # Virtual scroll state
+        self._all_browser_mods = []
+        self._virt_rows = {}   # {row_idx: (tk.Frame, canvas_window_id)}
+        self._browser_total_count = 0
+        self._load_more_btn = None
+        self._load_more_btn_win = None
+
+        # Resize event: Update the width of all visible rows directly on the canvas
+        def _on_canvas_resize(e):
+            for r, (frame, cw_id) in self._virt_rows.items():
+                self.browser_canvas.itemconfig(cw_id, width=e.width)
+            if getattr(self, '_load_more_btn_win', None):
+                self.browser_canvas.itemconfig(self._load_more_btn_win, width=e.width)
+            self._render_visible_browser_rows()
+
+        self.browser_canvas.bind("<Configure>", _on_canvas_resize)
+
+        # Re-render visible rows whenever the user scrolls
+        def _on_vscroll(*args):
+            scrollbar.set(*args)
+            self.after_idle(self._render_visible_browser_rows)
+        self.browser_canvas.configure(yscrollcommand=_on_vscroll)
 
         # Mousewheel binding
         self.browser_canvas.bind_all("<MouseWheel>", lambda e: self.browser_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
         self.browser_canvas.bind("<Destroy>", lambda e: self.browser_canvas.unbind_all("<MouseWheel>"))
 
+        # Sync external subscriptions in background before rendering tiles
+        threading.Thread(target=self._sync_subscriptions_from_modio, daemon=True).start()
         self.refresh_browser()
 
     def _fetch_game_tags(self, callback):
@@ -4257,29 +4655,51 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def refresh_browser(self):
         """Resets offset and clears view for a fresh search."""
         self.browser_offset = 0
+        self._all_browser_mods = []
+        self._browser_total_count = 0
+
+        # Clear virtual rows
+        if hasattr(self, '_virt_rows'):
+            for r, (frame, cw_id) in self._virt_rows.items():
+                try: frame.destroy()
+                except tk.TclError: pass
+        self._virt_rows = {}
+
+        if getattr(self, "_load_more_btn", None):
+            try: self._load_more_btn.destroy()
+            except tk.TclError: pass
+            self._load_more_btn = None
+            self._load_more_btn_win = None
+
         if hasattr(self, 'browser_stats_lbl'):
             self.browser_stats_lbl.config(text=T(1999101086))
 
-        for widget in self.browser_scroll_frame.winfo_children():
-            widget.destroy()
+        if hasattr(self, 'browser_canvas'):
+            self.browser_canvas.delete("all")
+            self.browser_canvas.yview_moveto(0)
 
-        loading_lbl = tk.Label(self.browser_scroll_frame, text=T(1999101087), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM)
-        loading_lbl.pack(pady=40)
+            # Center the loading label dynamically on the Canvas
+            c_width = self.browser_canvas.winfo_width()
+            x_pos = c_width // 2 if c_width > 1 else 400
 
-        # 1. Check if we are locked into a single specific mod from the News Tab
+            loading_lbl = tk.Label(self.browser_canvas, text=T(1999101087), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM)
+            self.browser_canvas.create_window((x_pos, 40), window=loading_lbl, anchor="n")
+
+        # Start Workers (We now pass self.browser_canvas instead of a frame)
         if hasattr(self, '_browser_exact_id') and self._browser_exact_id:
-            threading.Thread(target=self._fetch_exact_mod_worker, args=(self.browser_scroll_frame, loading_lbl, self._browser_exact_id), daemon=True).start()
-
-        # 2. Check if we are viewing Subscribed Mods only
+            threading.Thread(target=self._fetch_exact_mod_worker, args=(self.browser_canvas, loading_lbl, self._browser_exact_id), daemon=True).start()
         elif hasattr(self, 'browser_subscribed_only') and self.browser_subscribed_only.get():
-            threading.Thread(target=self._fetch_subscribed_mods, args=(self.browser_scroll_frame, loading_lbl, 0), daemon=True).start()
-
-        # 3. Standard Search & Sort
+            # Fetch the UI states just like in the 'else' block
+            q = self.browser_search_var.get()
+            s = self.browser_sort_options.get(self.browser_sort_var.get(), "-downloads_total")
+            tag = getattr(self, 'browser_tag_filter', '')
+            threading.Thread(
+                target=self._fetch_subscribed_mods, args=(self.browser_canvas, loading_lbl, q, s, 0, tag), daemon=True).start()
         else:
             q = self.browser_search_var.get()
             s = self.browser_sort_options.get(self.browser_sort_var.get(), "-downloads_total")
             tag = getattr(self, 'browser_tag_filter', '')
-            threading.Thread(target=self._fetch_and_render_mods, args=(self.browser_scroll_frame, loading_lbl, q, s, self.browser_offset, tag), daemon=True).start()
+            threading.Thread(target=self._fetch_and_render_mods, args=(self.browser_canvas, loading_lbl, q, s, self.browser_offset, tag), daemon=True).start()
 
     def _fetch_and_render_mods(self, parent_frame, loading_lbl, query="", sort="-downloads_total", offset=0, tag_filter=""):
         """Background worker that fetches a page of mods from the mod.io API (with optional text query and tag filter), updates the stats label and schedules _build_mod_tiles on the main thread."""
@@ -4302,13 +4722,13 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
             # We use offset + len(mods) to show the current progress
             current_viewing = offset + len(mods)
-            stats_text = T(1999101449, 1, current_viewing) if mods else T(1999101449, 0, current_viewing)
+            stats_text = T(1999101449, current_viewing, total_count) if mods else T(1999101449, 0, total_count)
             self.after(0, lambda t=stats_text: self.browser_stats_lbl.config(text=t) if hasattr(self, 'browser_stats_lbl') and self.browser_stats_lbl.winfo_exists() else None)
 
             self.after(0, loading_lbl.destroy)
 
             if not mods and offset == 0:
-                self.after(0, lambda: tk.Label(parent_frame, text=T(1999101088), bg=BG_MAIN, fg=FG_DIM).pack(pady=20))
+                self.after(0, lambda: parent_frame.create_window((parent_frame.winfo_width()//2 or 400, 40), window=tk.Label(parent_frame, text=T(1999101088), bg=BG_MAIN, fg=FG_DIM), anchor="n"))
                 return
 
             self.after(0, lambda: self._build_mod_tiles(parent_frame, mods, total_count)
@@ -4316,10 +4736,51 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         except Exception as e:
             self.after(0, lambda e=e: loading_lbl.config(text=T(1999101392, e)))
 
-    def _fetch_subscribed_mods(self, parent_frame, loading_lbl, offset=0):
-        """Fetches mods the authenticated user is subscribed to for this game."""
+    def _sync_subscriptions_from_modio(self):
+        """Fetches the user's current mod.io subscriptions and merges them into _subscription_states. This catches mods subscribed via the mod.io website that the app hasn't seen before, ensuring the Mod Browser shows the correct Subscribed state even for externally-subscribed mods."""
+        if not self.modio_token:
+            return
+        try:
+            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+            url = f"{MODIO_BASE_URL}/me/subscribed?game_id=11358&_limit=100"
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 401:
+                self.after(0, self._handle_modio_401)
+                return
+            if res.status_code != 200:
+                return
+            api_ids = {str(m.get("id", "")) for m in res.json().get("data", [])}
+            added   = [mid for mid in api_ids if mid and not self._subscription_states.get(mid)]
+            removed = [mid for mid, v in list(self._subscription_states.items()) if v and mid not in api_ids]
+            for mid in added:
+                self._subscription_states[mid] = True
+            for mid in removed:
+                del self._subscription_states[mid]
+            if added or removed:
+                self._save_subscriptions()
+                # Re-render tiles if the browser is still open
+                self.after(0, lambda: self.refresh_browser() if self.current_tab == "Mod Browser" else None)
+        except Exception as e:
+            print(f"[sub sync] {e}")
+
+    def _fetch_subscribed_mods(self, parent_frame, loading_lbl, q="", s="-id", offset=0, tag=""):
+        """Fetches mods the authenticated user is subscribed to with sorting and filtering."""
         headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+
+        # Base URL
         url = f"{MODIO_BASE_URL}/me/subscribed?game_id=11358&_limit=51&_offset={offset}"
+
+        # Append Search
+        if q:
+            url += f"&_q={q}"
+
+        # Append Sort
+        if s:
+            url += f"&_sort={s}"
+
+        # Append Tag Filter (excluding the 'All Tags' default)
+        if tag and tag != T(1999101082):
+            url += f"&tags={tag}"
 
         try:
             res = requests.get(url, headers=headers, timeout=10)
@@ -4337,178 +4798,261 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.after(0, loading_lbl.destroy)
 
             if not mods and offset == 0:
-                self.after(0, lambda: tk.Label(parent_frame, text=T(1999101089), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM).pack(pady=40))
+                self.after(0, lambda: parent_frame.create_window((parent_frame.winfo_width()//2 or 400, 40), window=tk.Label(parent_frame, text=T(1999101089), bg=BG_MAIN, fg=FG_DIM), anchor="n"))
                 return
 
-            self.after(0, lambda: self._build_mod_tiles(parent_frame, mods, total_count)
-                       if parent_frame.winfo_exists() else None)
+            self.after(0, lambda: self._build_mod_tiles(parent_frame, mods, total_count) if parent_frame.winfo_exists() else None)
         except Exception as e:
             self.after(0, lambda e=e: loading_lbl.config(text=T(1999101397, e)))
 
-    def _build_mod_tiles(self, parent_frame, mods, total_count):
-        """Builds the 3-column tile grid for the Mod Browser from a list of mod dicts. Guarded against stale tab switches. Also appends a 'Load More' button when more results are available."""
+    def _build_mod_tiles(self, canvas, mods, total_count):
+        """Accumulates fetched mod data and updates the virtual scrollregion."""
         try:
-            if not parent_frame.winfo_exists():
+            if not canvas.winfo_exists():
                 return
         except tk.TclError:
             return
-        columns = 3
 
-        # Configure columns
-        for c in range(columns):
-            parent_frame.grid_columnconfigure(c, weight=1, minsize=370)
-
-        # Only destroy if it's a fresh search (offset == 0)
+        # Fresh search: wipe slate
         if self.browser_offset == 0:
-            for widget in parent_frame.winfo_children():
-                widget.destroy()
+            for r, (frame, cw_id) in self._virt_rows.items():
+                try: frame.destroy()
+                except tk.TclError: pass
+            self._virt_rows = {}
+            self._all_browser_mods = []
+            if getattr(self, "_load_more_btn", None):
+                try: self._load_more_btn.destroy()
+                except tk.TclError: pass
+                self._load_more_btn = None
+                self._load_more_btn_win = None
+            canvas.delete("all")
 
-        # Calculate starting index based on current offset
-        start_index = self.browser_offset
-        for i, mod in enumerate(mods):
-            # Calculate unique grid position for THIS mod
-            current_i = start_index + i
-            row = current_i // columns
-            col = current_i % columns
+        # Accumulate data
+        self._all_browser_mods.extend(mods)
+        self.browser_offset = len(self._all_browser_mods)
+        self._browser_total_count = total_count
 
-            # Create the tile
-            tile = tk.Frame(parent_frame, bg=BG_SECTION, highlightbackground=FG_GOLD, highlightthickness=1, padx=15, pady=15)
-            tile.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-            tile.grid_propagate(False)
-            tile.config(width=320, height=620)
+        n_rows = (len(self._all_browser_mods) + _VR_C - 1) // _VR_C
+        frame_h = n_rows * _VR_H + (70 if self.browser_offset < total_count else 0)
 
-            # 1. Image
-            img_container = tk.Frame(tile, bg=BG_MAIN, width=290, height=163)
-            img_container.pack_propagate(False)
-            img_container.pack(fill="x", pady=(0, 10))
-            img_lbl = tk.Label(img_container, text=T(1999101090), bg=BG_MAIN, fg=FG_DIM, cursor="hand2")
-            img_lbl.pack(expand=True, fill="both")
+        # Update canvas scrollregion immediately! (No master frame height limits anymore)
+        canvas.configure(scrollregion=(0, 0, canvas.winfo_width() or 1, frame_h))
 
-            img_lbl.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
+        # Place Load More button at the very bottom using Canvas Window
+        if getattr(self, "_load_more_btn", None):
+            try: self._load_more_btn.destroy()
+            except tk.TclError: pass
+            self._load_more_btn = None
+            if self._load_more_btn_win:
+                canvas.delete(self._load_more_btn_win)
+                self._load_more_btn_win = None
 
-            # BIND CLICK TO IMAGE
-            img_lbl.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
-
-            # Endorse button
-            mod_id = str(mod.get('id'))
-            already_endorsed = self._endorsement_states.get(mod_id, False)
-            _ico_end = load_icon("endorsed" if already_endorsed else "endorse", (14, 14))
-            endorse_btn = tk.Button(img_container, text=T(1999101167) if already_endorsed else T(1999101092), font=FONT_XSMALL, bg="#2ecc71" if already_endorsed else BG_SECTION, fg=FG_MAIN, disabledforeground=FG_MAIN, relief="flat", cursor="arrow" if already_endorsed else "hand2", padx=6, pady=2, state="disabled" if already_endorsed else "normal", image=_ico_end, compound="left" if _ico_end else "none")
-            if _ico_end: endorse_btn.image = _ico_end
-            endorse_btn.place(x=4, y=4)
-            if not already_endorsed:
-                endorse_btn.config(command=lambda mid=mod_id, btn=endorse_btn: self._endorse_mod(mid, btn))
-                self._bind_hover(endorse_btn, BG_SECTION, "#39f085")
-
-            # 2. Content
-            content_frame = tk.Frame(tile, bg=BG_SECTION)
-            content_frame.pack(fill="both", expand=True)
-
-            # Title
-            raw_name = html.unescape(mod['name']).upper()
-            display_name = (raw_name[:40] + "...") if len(raw_name) > 43 else raw_name
-            title_lbl = tk.Label(content_frame, text=display_name, font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=280, justify="left", anchor="nw", height=2, cursor="hand2")
-            title_lbl.pack(fill="x")
-
-            # BIND CLICK TO MAIN TILE
-            for widget in [tile, content_frame, title_lbl]:
-                widget.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
-
-            tk.Frame(content_frame, height=1, bg=FG_DIM).pack(fill="x", pady=(5, 5))
-
-            # Meta Header
-            meta_header = tk.Frame(content_frame, bg=BG_SECTION)
-            meta_header.pack(fill="x", pady=(5, 2))
-            author = mod.get('submitted_by', {}).get('username', 'Unknown')
-            tk.Label(meta_header, text=author, font=FONT_SMALL, bg=BG_SECTION, fg="#07C1D8").pack(side="left")
-
-            ts = mod.get('date_updated', 0)
-            date_v = datetime.fromtimestamp(ts).strftime('%Y-%m-%d') if ts else "???"
-            tk.Label(meta_header, text=f"📅 {date_v}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="right")
-
-            # Tags
-            tags_list = [t.get('name', '') for t in mod.get('tags', [])]
-            raw_t = " | ".join(tags_list) if tags_list else "No Tags"
-            display_t = (raw_t[:72] + "...") if len(raw_t) > 75 else raw_t
-            tk.Label(content_frame, text=display_t, font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71", wraplength=280, justify="left", anchor="nw", height=2).pack(fill="x")
-
-            # Summary
-            summary = html.unescape(mod.get('summary', 'No description.'))
-            tk.Label(content_frame, text=summary, font=FONT_SMALL, bg=BG_SECTION, fg="#bbbbbb", wraplength=280, justify="left", anchor="nw").pack(fill="both", expand=True, pady=10)
-
-            # --- BOTTOM STACK ---
-            # Pack order: Buttons -> Separator -> Stats
-            btn_frame = tk.Frame(tile, bg=BG_SECTION)
-            btn_frame.pack(side="bottom", fill="x", pady=(15, 0))
-
-            sep = tk.Frame(tile, height=1, bg=FG_DIM)
-            sep.pack(side="bottom", fill="x", pady=(5, 5))
-
-            stats_frame = tk.Frame(tile, bg=BG_SECTION)
-            stats_frame.pack(side="bottom", fill="x")
-            for c in range(3): stats_frame.columnconfigure(c, weight=1)
-
-            # Buttons
-            _ico_mvis = load_icon("mod_visit", (14, 14))
-            self.btn_visit = tk.Button(btn_frame, text=T(1999101168), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="flat", cursor="hand2", image=_ico_mvis, compound="left" if _ico_mvis else "none", command=lambda u=mod['profile_url']: webbrowser.open_new_tab(u))
-            if _ico_mvis: self.btn_visit.image = _ico_mvis
-            self.btn_visit.pack(side="left")
-            self._bind_hover(self.btn_visit, BG_MAIN)
-
-            modfile = mod.get('modfile', {})
-            dl_url = modfile.get('download', {}).get('binary_url')
-            tile_mod_id = str(mod.get('id'))
-            is_subscribed = self._subscription_states.get(tile_mod_id, False)
-
-            install_area = tk.Frame(btn_frame, bg=BG_SECTION)
-            install_area.pack(side="right")
-
-            if dl_url:
-                if is_subscribed:
-                    self._apply_subscribed_state(install_area, dl_url, mod['name'], mod_id)
-                else:
-                    _ico_inst = load_icon("install_mod", (32, 32))
-                    btn_install = tk.Button(install_area, text=T(1999101169), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", activebackground="#39f085", relief="flat", cursor="hand2", image=_ico_inst, compound="left" if _ico_inst else "none", command=lambda u=dl_url, n=mod['name'], mid=tile_mod_id, ia=install_area: self._download_and_install(u, n, mid, ia))
-                    if _ico_inst: btn_install.image = _ico_inst
-                    btn_install.pack()
-                    self._bind_hover(btn_install, "#2ecc71", "#39f085")
-            else:
-                tk.Label(install_area, text=T(1999101170), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack()
-
-            # Stats logic
-            st = mod.get('stats', {})
-            sz = modfile.get('filesize', 0)
-            sz_str = f"{round(sz/1024, 1)} KB" if sz < 102400 else f"{round(sz/(1024*1024), 1)} MB"
-
-            tk.Label(stats_frame, text=f"📥 {st.get('downloads_total', 0):,}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=0, sticky="w")
-            tk.Label(stats_frame, text=f"⭐ {st.get('ratings_display_text', 'N/A')}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=1, sticky="n")
-            tk.Label(stats_frame, text=f"📦 {sz_str}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=2, sticky="e")
-
-            # Image
-            t_url = mod.get('logo', {}).get('thumb_320x180')
-            if t_url:
-                threading.Thread(target=self._load_mod_image, args=(img_lbl, t_url), daemon=True).start()
-
-        self.browser_offset += len(mods)
-
-        # Add "Load More" button if there are more mods available
         if self.browser_offset < total_count:
-            # Remove any old Load More buttons first
-            for child in parent_frame.winfo_children():
-                if getattr(child, 'is_load_more_btn', False):
-                    child.destroy()
+            more_border = tk.Frame(canvas, bg=BG_SECTION, highlightthickness=1, highlightbackground=BG_SECTION, bd=0)
+            _mb = tk.Button(more_border, text=T(1999101095), font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, pady=10, relief="flat", bd=0, cursor="hand2", command=self.load_next_page)
+            _mb.pack(fill="both", expand=True)
+            self._bind_border_button_hover(_mb, BG_SECTION, "#253b59")
 
-            # 1. Create the border wrapper frame
-            more_border = tk.Frame(parent_frame, bg=BG_SECTION, highlightthickness=1, highlightbackground=BG_SECTION, bd=0)
-            # Use the same grid parameters that the button used
-            more_border.grid(row=(self.browser_offset // columns) + 1, column=0, columnspan=columns, sticky="ew", pady=20)
+            self._load_more_btn = more_border
+            self._load_more_btn_win = canvas.create_window((0, n_rows * _VR_H), window=more_border, anchor="nw", width=canvas.winfo_width(),height=60)
 
-            # 2. Create the button inside the frame
-            more_btn = tk.Button(more_border, text=T(1999101095), font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, pady=10, relief="flat", bd=0, cursor="hand2", command=self.load_next_page)
-            more_btn.is_load_more_btn = True # Custom flag to find it later
-            # Span across all columns at the very bottom
-            more_btn.pack(fill="both", expand=True)
-            self._bind_border_button_hover(more_btn, BG_SECTION, "#253b59")
+        # Render tiles that are currently visible
+        self._render_visible_browser_rows()
+
+    def _render_visible_browser_rows(self):
+        """Render only the row frames near the current canvas viewport natively on the Canvas."""
+        try:
+            if not self.browser_canvas.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        n_mods = len(self._all_browser_mods)
+        if n_mods == 0:
+            return
+
+        n_rows = (n_mods + _VR_C - 1) // _VR_C
+
+        y0_frac, y1_frac = self.browser_canvas.yview()
+        sr = self.browser_canvas.cget("scrollregion")
+        if not sr:
+            total_h = n_rows * _VR_H
+        else:
+            try:
+                total_h = float(sr.split()[3])
+            except (IndexError, ValueError):
+                total_h = n_rows * _VR_H
+
+        view_top = y0_frac * total_h
+        view_bot = y1_frac * total_h
+
+        first_r = max(0, int(view_top / _VR_H) - _VR_BUF)
+        last_r  = min(n_rows-1, int(view_bot / _VR_H) + _VR_BUF)
+
+        # Destroy rows outside the buffer zone
+        stale = [r for r in list(self._virt_rows) if r < first_r or r > last_r]
+        for r in stale:
+            frame, cw_id = self._virt_rows[r]
+            self.browser_canvas.delete(cw_id)
+            try: frame.destroy()
+            except tk.TclError: pass
+            del self._virt_rows[r]
+
+        # Render new rows
+        for r in range(first_r, last_r + 1):
+            if r in self._virt_rows:
+                continue
+            start = r * _VR_C
+            row_mods = self._all_browser_mods[start : start + _VR_C]
+            if not row_mods:
+                continue
+
+            row_frame = tk.Frame(self.browser_canvas, bg=BG_MAIN)
+            for c in range(_VR_C):
+                row_frame.grid_columnconfigure(c, weight=1, uniform="browser_tile")
+
+            # Place directly on Canvas coordinate map
+            cw_id = self.browser_canvas.create_window((0, r * _VR_H), window=row_frame, anchor="nw", width=self.browser_canvas.winfo_width(), height=_VR_H)
+
+            for col_pos, mod in enumerate(row_mods):
+                self._build_browser_tile(row_frame, mod, col_pos)
+
+            self._virt_rows[r] = (row_frame, cw_id)
+
+    def _build_browser_tile(self, row_frame, mod, col_pos):
+        """Builds one tile widget inside row_frame at the given column position."""
+        tile = tk.Frame(row_frame, bg=BG_SECTION, highlightbackground=FG_GOLD, highlightthickness=1, padx=15, pady=15)
+        tile.grid(row=0, column=col_pos, padx=10, pady=10, sticky="nsew")
+        tile.pack_propagate(False)
+        tile.grid_propagate(False)
+        tile.config(width=320, height=620)
+
+        # 1. Image
+        img_container = tk.Frame(tile, bg=BG_MAIN, width=290, height=163)
+        img_container.pack_propagate(False)
+        img_container.pack(fill="x", pady=(0, 10))
+        img_lbl = tk.Label(img_container, text=T(1999101090), bg=BG_MAIN, fg=FG_DIM, cursor="hand2")
+        img_lbl.pack(expand=True, fill="both")
+
+        # BIND CLICK TO IMAGE
+        img_lbl.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
+
+        # Endorse button
+        mod_id = str(mod.get('id'))
+        already_endorsed = self._endorsement_states.get(mod_id, False)
+        _ico_end = load_icon("endorsed" if already_endorsed else "endorse", (14, 14))
+        endorse_btn = tk.Button(img_container, text=T(1999101167) if already_endorsed else T(1999101092), font=FONT_XSMALL, bg="#2ecc71" if already_endorsed else BG_SECTION, fg=FG_MAIN, disabledforeground=FG_MAIN, relief="flat", cursor="arrow" if already_endorsed else "hand2", padx=6, pady=2, state="disabled" if already_endorsed else "normal", image=_ico_end, compound="left" if _ico_end else "none")
+        if _ico_end: endorse_btn.image = _ico_end
+        endorse_btn.place(x=4, y=4)
+        if not already_endorsed:
+            endorse_btn.config(command=lambda mid=mod_id, btn=endorse_btn: self._endorse_mod(mid, btn))
+            self._bind_hover(endorse_btn, BG_SECTION, "#39f085")
+
+        # 2. Content
+        content_frame = tk.Frame(tile, bg=BG_SECTION)
+        content_frame.pack(fill="both", expand=True)
+
+        # Title
+        raw_name = html.unescape(mod['name']).upper()
+        display_name = (raw_name[:40] + "...") if len(raw_name) > 43 else raw_name
+        title_lbl = tk.Label(content_frame, text=display_name, font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=280, justify="left", anchor="nw", height=2, cursor="hand2")
+        title_lbl.pack(fill="x")
+
+        # BIND CLICK TO MAIN TILE
+        for widget in [tile, content_frame, title_lbl]:
+            widget.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
+
+        tk.Frame(content_frame, height=1, bg=FG_DIM).pack(fill="x", pady=(5, 5))
+
+        # Meta Header
+        meta_header = tk.Frame(content_frame, bg=BG_SECTION)
+        meta_header.pack(fill="x", pady=(5, 2))
+        author = mod.get('submitted_by', {}).get('username', 'Unknown')
+        tk.Label(meta_header, text=author, font=FONT_SMALL, bg=BG_SECTION, fg="#07C1D8").pack(side="left")
+        ts = mod.get('date_updated', 0)
+        date_v = datetime.fromtimestamp(ts).strftime('%Y-%m-%d') if ts else "???"
+        tk.Label(meta_header, text=f"📅 {date_v}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="right")
+
+        # Tags
+        tags_list = [t.get('name', '') for t in mod.get('tags', [])]
+        raw_t = " | ".join(tags_list) if tags_list else "No Tags"
+        display_t = (raw_t[:72] + "...") if len(raw_t) > 75 else raw_t
+        tk.Label(content_frame, text=display_t, font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71", wraplength=280, justify="left", anchor="nw", height=2).pack(fill="x")
+
+        summary = html.unescape(mod.get('summary', 'No description.'))
+        tk.Label(content_frame, text=summary, font=FONT_SMALL, bg=BG_SECTION, fg="#bbbbbb", wraplength=280, justify="left", anchor="nw").pack(fill="both", expand=True, pady=10)
+
+        # Bottom stack: buttons → separator → stats
+        btn_frame = tk.Frame(tile, bg=BG_SECTION)
+        btn_frame.pack(side="bottom", fill="x", pady=(15, 0))
+        tk.Frame(tile, height=1, bg=FG_DIM).pack(side="bottom", fill="x", pady=(5, 5))
+        stats_frame = tk.Frame(tile, bg=BG_SECTION)
+        stats_frame.pack(side="bottom", fill="x")
+        for c in range(3): stats_frame.columnconfigure(c, weight=1)
+
+        # Buttons
+        _ico_mvis = load_icon("mod_visit", (14, 14))
+        btn_visit = tk.Button(btn_frame, text=T(1999101168), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="flat", cursor="hand2", image=_ico_mvis, compound="left" if _ico_mvis else "none", command=lambda u=mod['profile_url']: webbrowser.open_new_tab(u))
+        if _ico_mvis: btn_visit.image = _ico_mvis
+        btn_visit.pack(side="left")
+        self._bind_hover(btn_visit, BG_MAIN)
+
+        modfile = mod.get('modfile', {})
+        dl_url = modfile.get('download', {}).get('binary_url')
+        tile_mod_id = str(mod.get('id'))
+        is_subscribed = self._subscription_states.get(tile_mod_id, False)
+
+        # Robust check against ACTUAL files on disk (self.mods)
+        # 1. Does any physically present mod map to this mod.io ID?
+        is_installed_locally = any(
+            self._subscription_modio_map.get(m['id']) == tile_mod_id
+            for m in self.mods if not m.get('parent_path')
+        )
+
+        # 2. Fallback: Does any physically present mod have the exact same normalized name? (Catches manually installed mods that aren't in the subscription map yet)
+        if not is_installed_locally:
+            import re as _re
+            norm_target = _re.sub(r'[^a-z0-9]', '', mod.get('name', '').lower())
+            for m in self.mods:
+                if m.get('parent_path'): continue
+                if _re.sub(r'[^a-z0-9]', '', m.get('name', '').lower()) == norm_target:
+                    is_installed_locally = True
+                    break
+
+        install_area = tk.Frame(btn_frame, bg=BG_SECTION)
+        install_area.pack(side="right")
+
+        if dl_url:
+            if is_subscribed:
+                # Pass the flag to draw the "!" if it is completely missing from disk
+                self._apply_subscribed_state(install_area, dl_url, mod['name'], tile_mod_id, missing_local=not is_installed_locally)
+            else:
+                # Not subscribed, but installed locally
+                if is_installed_locally:
+                    _lbl_nosub = tk.Label(install_area, text="!", font=FONT_UI_BOLD, fg=FG_GOLD, bg=BG_SECTION)
+                    _lbl_nosub.pack(side="left", padx=(0, 4))
+                    self._attach_tooltip(_lbl_nosub, T(1999101477))
+
+                _ico_inst = load_icon("install_mod", (32, 32))
+                btn_install = tk.Button(install_area, text=T(1999101169), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", activebackground="#39f085", relief="flat", cursor="hand2", image=_ico_inst, compound="left" if _ico_inst else "none", command=lambda u=dl_url, nm=mod['name'], mid=tile_mod_id, ia=install_area: self._download_and_install(u, nm, mid, ia))
+                if _ico_inst: btn_install.image = _ico_inst
+                btn_install.pack()
+                self._bind_hover(btn_install, "#2ecc71", "#39f085")
+        else:
+            tk.Label(install_area, text=T(1999101170), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack()
+
+        # Stats logic
+        st = mod.get('stats', {})
+        sz = modfile.get('filesize', 0)
+        sz_str = f"{round(sz/1024, 1)} KB" if sz < 102400 else f"{round(sz/(1024*1024), 1)} MB"
+        tk.Label(stats_frame, text=f"📥 {st.get('downloads_total', 0):,}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=0, sticky="w")
+        tk.Label(stats_frame, text=f"⭐ {st.get('ratings_display_text', 'N/A')}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=1, sticky="n")
+        tk.Label(stats_frame, text=f"📦 {sz_str}", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).grid(row=0, column=2, sticky="e")
+
+        # Image
+        t_url = mod.get('logo', {}).get('thumb_320x180')
+        if t_url:
+            threading.Thread(target=self._load_mod_image, args=(img_lbl, t_url), daemon=True).start()
 
     def _endorse_mod(self, mod_id, btn):
         """Submits a positive rating for mod_id via the mod.io API."""
@@ -4548,13 +5092,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         threading.Thread(target=task, daemon=True).start()
 
     def _apply_endorsed_state(self, btn):
-        """Updates an endorse button to the permanently disabled 'Endorsed' appearance after a successful endorsement API call."""
+        """Updates an endorse button to the endorsed appearance in full colour. Uses state='normal' with no command so the icon is never stippled grey."""
         try:
-            btn.config(text=T(1999101172), bg="#2ecc71", fg=FG_MAIN, disabledforeground=FG_MAIN, state="disabled", cursor="arrow", relief="flat")
+            _ico_endorsed = load_icon("endorsed", (14, 14))
+            btn.config(
+                text=T(1999101167), bg="#2ecc71", fg=FG_MAIN, activebackground="#2ecc71", state="normal", cursor="arrow", relief="flat", image=_ico_endorsed if _ico_endorsed else "", compound="left" if _ico_endorsed else "none", command="")
+            btn.image = _ico_endorsed
             btn.unbind("<Enter>")
             btn.unbind("<Leave>")
         except tk.TclError:
-            pass  # Tile destroyed before response arrived
+            pass
 
     def _endorse_failed(self, btn, reason):
         """Resets an endorse button to its normal state and shows an error alert after a failedendorsement API call."""
@@ -4600,17 +5147,30 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         btn.bind("<Leave>", on_leave)
 
     def load_next_page(self):
-        """Fetches the next batch of mods without clearing the grid."""
-        load_lbl = tk.Label(self.browser_scroll_frame, text=T(1999101096), bg=BG_MAIN, fg=FG_DIM)
-        load_lbl.grid(row=(self.browser_offset // 3) + 2, column=0, columnspan=3)
+        """Fetches the next batch of mods directly on the Canvas."""
+        if getattr(self, "_load_more_btn", None):
+            try: self._load_more_btn.destroy()
+            except tk.TclError: pass
+            self._load_more_btn = None
+            if getattr(self, "_load_more_btn_win", None):
+                self.browser_canvas.delete(self._load_more_btn_win)
+                self._load_more_btn_win = None
+
+        n_rows = (len(getattr(self, "_all_browser_mods", [])) + _VR_C - 1) // _VR_C
+
+        load_lbl = tk.Label(self.browser_canvas, text=T(1999101096), bg=BG_MAIN, fg=FG_DIM)
+        self.browser_canvas.create_window((self.browser_canvas.winfo_width()//2 or 400, n_rows * _VR_H + 20), window=load_lbl, anchor="n")
 
         if hasattr(self, 'browser_subscribed_only') and self.browser_subscribed_only.get():
-            threading.Thread(target=self._fetch_subscribed_mods, args=(self.browser_scroll_frame, load_lbl, self.browser_offset), daemon=True).start()
+            q = self.browser_search_var.get()
+            s = self.browser_sort_options.get(self.browser_sort_var.get(), "-downloads_total")
+            tag = getattr(self, 'browser_tag_filter', '')
+            threading.Thread(target=self._fetch_subscribed_mods, args=(self.browser_canvas, load_lbl, q, s, self.browser_offset, tag), daemon=True).start()
         else:
             q = self.browser_search_var.get()
             s = self.browser_sort_options.get(self.browser_sort_var.get(), "-downloads_total")
             tag = getattr(self, 'browser_tag_filter', '')
-            threading.Thread(target=self._fetch_and_render_mods, args=(self.browser_scroll_frame, load_lbl, q, s, self.browser_offset, tag), daemon=True).start()
+            threading.Thread(target=self._fetch_and_render_mods, args=(self.browser_canvas, load_lbl, q, s, self.browser_offset, tag), daemon=True).start()
 
     def _load_mod_image(self, label, url):
         """Downloads and scales image without blocking the UI."""
@@ -4916,10 +5476,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         """Downloads the mod and passes it to the existing run_install_logic."""
         dl_win = tk.Toplevel(self)
         dl_win.title(T(1999101103))
-        dl_win.geometry("400x180")
+        dl_win.geometry("400x250")
 
         # Define size
-        win_w, win_h = 400, 180
+        win_w, win_h = 400, 250
         dl_win.geometry(f"{win_w}x{win_h}")
 
         # Add the centering logic
@@ -5023,6 +5583,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if success:
                     self._subscription_states[str(mod_id)] = True
                     self._save_subscriptions()
+                    # Only store mapping if not already present — run_install_logic sets it precisely via ModID; _store_modio_mapping uses fuzzy matching which can corrupt the map when two mods share tokens
+                    if str(mod_id) not in self._subscription_modio_map.values():
+                        self._store_modio_mapping(mod_id, mod_name)
                     self._store_modio_mapping(mod_id, mod_name)
                     if install_area is not None:
                         self.after(0, lambda: self._apply_subscribed_state(install_area, dl_url, mod_name, mod_id))
@@ -5121,6 +5684,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     print(f"[Preflight] Download failed for '{dep_mod_name}': {e}")
 
         # 3. Install the main mod on the main thread, then subscribe
+        self._pending_modio_mapping = (str(mod_id), mod_name)
+
         main_done = threading.Event()
         def _do_main_install(ev=main_done):
             self.run_install_logic(main_zip_path)
@@ -5209,23 +5774,32 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
     def _silent_finalize(self, zip_path, mod_id, mod_name):
         """Main-thread finalizer for a silently installed dependency."""
+        # Set the pending map BEFORE calling run_install_logic so it can consume it
+        self._pending_modio_mapping = (str(mod_id), mod_name)
+
         self.run_install_logic(zip_path, silent=True)
         self._subscription_states[str(mod_id)] = True
         self._save_subscriptions()
-        self._store_modio_mapping(mod_id, mod_name)
+        # _store_modio_mapping is no longer needed here because run_install_logic handles it directly.
 
-    def _apply_subscribed_state(self, install_area, dl_url, mod_name, mod_id):
+    def _apply_subscribed_state(self, install_area, dl_url, mod_name, mod_id, missing_local=False):
         """Clears install_area and rebuilds it with the Refresh icon and the interactive Subscribed button."""
         try:
             for w in install_area.winfo_children():
                 w.destroy()
+
+            # Draw the warning badge here, AFTER destroying the old children
+            if missing_local:
+                _lbl_sub = tk.Label(install_area, text="!", font=FONT_UI_BOLD, fg=FG_GOLD, bg=BG_SECTION)
+                _lbl_sub.pack(side="left", padx=(0, 4))
+                self._attach_tooltip(_lbl_sub, T(1999101476))
 
             # --- 1. THE REINSTALL BUTTON (↻) ---
             def _confirm_reinstall():
                 msg = T(1999101359, mod_name)
 
                 if self._imperial_question(T(1999101213), msg):
-                    self._download_and_install(dl_url, mod_name)
+                    self._download_and_install(dl_url, mod_name, mod_id=mod_id)
 
             _ico_rei = load_icon("reinstall", (22, 22))
             refresh_btn = tk.Button(install_area, text="" if _ico_rei else "↻", font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="flat", cursor="hand2", padx=6, image=_ico_rei, compound="center" if _ico_rei else "none", command=_confirm_reinstall)
@@ -5297,40 +5871,67 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             print(f"Failed to save subscription map: {e}")
 
     def _store_modio_mapping(self, modio_id, modio_name):
-        """After a successful install, find the local mod that matches modio_name and store local_ModID → modio_id in the persistent map."""
+        """After a successful install, find the local mod that matches modio_name and store local_ModID → modio_id in the persistent map, if earlier attempts failed."""
         import re as _re
         def _tok(s):
-            return set(_re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
+            # Strip special chars and split into a set of words
+            return set(_re.sub(r'[^a-z0-9]', ' ', str(s).lower()).split())
+
+        # 0. Remove any stale entries that point to this modio_id but belong to a different local mod — prevents two local mods sharing one modio ID
+        mid_str = str(modio_id)
+        stale = [k for k, v in self._subscription_modio_map.items() if v == mid_str]
+        for k in stale:
+            del self._subscription_modio_map[k]
+
         name_tokens = _tok(modio_name)
         local_match = None
-        # Exact normalised match first
-        norm = modio_name.lower().replace(' ', '')
+
+        # 1. Exact normalised match first (Checks both Name and ID)
+        norm_target = _re.sub(r'[^a-z0-9]', '', modio_name.lower())
         for m in self.mods:
-            if m.get('parent_path'):
-                continue
-            if m.get('name', '').lower().replace(' ', '') == norm:
+            if m.get('parent_path'): continue
+            norm_name = _re.sub(r'[^a-z0-9]', '', m.get('name', '').lower())
+            norm_id = _re.sub(r'[^a-z0-9]', '', m.get('id', '').lower())
+
+            if norm_name == norm_target or norm_id == norm_target:
                 local_match = m
                 break
-        # Token-subset fallback
+
+        # 2. Intersection Scoring (Fuzzy Match)
         if local_match is None:
+            best_match = None
+            best_score = 0
             for m in self.mods:
-                if m.get('parent_path'):
-                    continue
-                lt = _tok(m.get('name', ''))
-                if lt and lt.issubset(name_tokens):
-                    local_match = m
-                    break
-        if local_match is None:
-            for m in self.mods:
-                if m.get('parent_path'):
-                    continue
-                lt = _tok(m.get('name', ''))
-                if name_tokens and name_tokens.issubset(lt):
-                    local_match = m
-                    break
+                if m.get('parent_path'): continue
+
+                id_tokens = _tok(m.get('id', ''))
+                name_toks = _tok(m.get('name', ''))
+
+                # Count how many words overlap
+                overlap_id = len(name_tokens.intersection(id_tokens))
+                overlap_name = len(name_tokens.intersection(name_toks))
+
+                score = max(overlap_id, overlap_name)
+
+                # Tie-breakers: bump the score slightly if it's a perfect subset
+                if name_tokens.issubset(id_tokens) or name_tokens.issubset(name_toks):
+                    score += 0.5
+                if id_tokens.issubset(name_tokens) or name_toks.issubset(name_tokens):
+                    score += 0.5
+
+                # Require at least 1 matching word to prevent wild false positives
+                if score > best_score and score >= 1:
+                    best_score = score
+                    best_match = m
+
+            if best_match:
+                local_match = best_match
+
         if local_match:
             self._subscription_modio_map[local_match['id']] = str(modio_id)
             self._save_subscription_map()
+        else:
+            print(f"[modio_map] WARNING: could not match mod.io '{modio_name}' (id={modio_id}) to any local mod.")
 
     def _unsubscribe_from_mod(self, mod_id, mod_name, install_area, dl_url):
         """Prompt user and trigger the unsubscription/uninstallation process."""
@@ -5447,10 +6048,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.after(0, lambda: self._apply_subscribed_state(install_area, dl_url, mod_name, mod_id))
 
     def _delete_unsubscribed_mod(self, mod_id, mod_name):
-        """Finds and deletes the local folder by matching the mod.io Name to local modinfo metadata."""
+        """Finds and deletes the local folder for a mod.io mod by numeric ID, falling back to name-matching if the subscription map doesn't have it."""
 
         # 1. Physical Scan of local modinfo files
         all_local_metadata = self.get_all_mod_metadata()
+
+        # Fast path: resolve via subscription map (local_mod_id → modio_id)
+        mid_str = str(mod_id)
+        rev_map = {v: k for k, v in self._subscription_modio_map.items()}
+        local_id = rev_map.get(mid_str)
+        target = next((m for m in all_local_metadata if m['id'] == local_id), None) if local_id else None
 
         import re as _re
         def _tok(s):
@@ -5458,13 +6065,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         search_name   = mod_name.lower().replace(" ", "")
         search_tokens = _tok(mod_name)
-        target = None
 
-        for m in all_local_metadata:
-            local_name = m.get('name', '').lower().replace(" ", "")
-            if search_name == local_name or search_name in local_name:
-                target = m
-                break
+        # Fallback: name matching (for mods not yet in the subscription map)
+        if target is None:
+            for m in all_local_metadata:
+                local_name = m.get('name', '').lower().replace(" ", "")
+                if search_name == local_name or search_name in local_name:
+                    target = m
+                    break
 
         if target is None:
             for m in all_local_metadata:
@@ -6360,25 +6968,45 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.col_canvas = tk.Canvas(self.main_content, bg=BG_MAIN, highlightthickness=0)
         col_scrollbar = tk.Scrollbar(self.main_content, orient="vertical", command=self.col_canvas.yview)
         self.col_scroll_frame = tk.Frame(self.col_canvas, bg=BG_MAIN)
-        self.col_scroll_frame.bind("<Configure>", lambda e: self.col_canvas.configure(scrollregion=self.col_canvas.bbox("all")))
-        self.col_canvas.create_window((0, 0), window=self.col_scroll_frame, anchor="nw")
+        _col_cw = self.col_canvas.create_window((0, 0), window=self.col_scroll_frame, anchor="nw")
+        # Keep inner frame width matched to the canvas
+        self.col_canvas.bind("<Configure>", lambda e: self.col_canvas.itemconfig(_col_cw, width=e.width))
         self.col_canvas.configure(yscrollcommand=col_scrollbar.set)
         self.col_canvas.pack(side="left", fill="both", expand=True, padx=20)
         col_scrollbar.pack(side="right", fill="y")
-        self.col_canvas.bind_all("<MouseWheel>", lambda e: self.col_canvas.yview_scroll(int(-1*(e.delta/120)), "units") if self.col_canvas.yview()[0] > 0 or e.delta < 0 else None)
         self.col_canvas.bind("<Destroy>", lambda e: self.col_canvas.unbind_all("<MouseWheel>"))
+
+        # Virtual-scroll state
+        self._all_col_data    = []
+        self._col_virt_rows   = {}
+        self._col_total_count = 0
+        self._col_load_more   = None
+
+        # Re-render visible rows on scroll
+        def _col_vscroll(*args):
+            col_scrollbar.set(*args)
+            self.after_idle(self._render_visible_col_rows)
+        self.col_canvas.configure(yscrollcommand=_col_vscroll)
+
+        self.col_canvas.bind_all("<MouseWheel>", lambda e:
+            self.col_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
 
         self.col_offset = 0
         self._refresh_collections()
 
     def _refresh_collections(self):
-        """Resets the collection offset, clears the tile grid and restarts a background fetch, dispatchingto the followed-collections or general worker depending on the current filter state."""
+        """Resets the collection offset, clears the tile grid and restarts a background fetch."""
         self.col_offset = 0
+        self._all_col_data    = []
+        self._col_virt_rows   = {}
+        self._col_total_count = 0
+        self._col_load_more   = None
         if hasattr(self, 'col_stats_lbl'):
             self.col_stats_lbl.config(text=T(1999101086))
+        # Destroy only the loading label (virtual rows are gone via state reset)
         for widget in self.col_scroll_frame.winfo_children():
-            widget.destroy()
-        # Reset scroll to top so filter switches always start at row 1
+            try: widget.destroy()
+            except: pass
         if hasattr(self, 'col_canvas'):
             self.col_canvas.yview_moveto(0)
         loading_lbl = tk.Label(self.col_scroll_frame, text=T(1999101087), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM)
@@ -6449,8 +7077,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     )
                 ]
                 total = len(collections)
-            total_count = offset + len(collections)
-            stats = T(1999101464, 1, total_count) if collections else T(1999101464, 0, total_count)
+            current_viewing = offset + len(collections)
+            stats = T(1999101464, current_viewing, total) if collections else T(1999101464, 0, total)
 
             def _safe_update(t=stats, cols=collections, tot=total):
                 try:
@@ -6490,6 +7118,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             try:
                 if not parent_frame.winfo_exists():
                     return
+                # Apply active tag filter client-side
+                tag_filter = getattr(self, 'col_tag_filter', '')
+                if tag_filter:
+                    cols = [
+                        c for c in cols
+                        if any(
+                            (t if isinstance(t, str) else t.get('name', '')) == tag_filter
+                            for t in (c.get('tags') or [])
+                        )
+                    ]
                 if hasattr(self, 'col_stats_lbl') and self.col_stats_lbl.winfo_exists():
                     self.col_stats_lbl.config(text=T(1999101378, len(cols)))
                 try:
@@ -6506,119 +7144,170 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.after(0, _safe_followed_update)
 
     def _build_collection_tiles(self, parent_frame, collections, total):
-        """Builds the 3-column tile grid for the Collections tab from a list of collection dicts. Guardedagainst stale tab switches. Also appends a 'Load More' button when more results are available."""
+        """Accumulates fetched collection data and triggers a virtual render."""
         try:
-            if not parent_frame.winfo_exists():
-                return
+            if not parent_frame.winfo_exists(): return
         except tk.TclError:
             return
-        columns = 3
-        for c in range(columns):
-            parent_frame.grid_columnconfigure(c, weight=1, minsize=370)
 
-        if getattr(self, 'col_offset', 0) == 0:
-            for widget in parent_frame.winfo_children():
-                widget.destroy()
+        if self.col_offset == 0:
+            for rf in self._col_virt_rows.values():
+                try: rf.destroy()
+                except tk.TclError: pass
+            self._col_virt_rows = {}
+            self._all_col_data = []
+            if getattr(self, "_col_load_more", None):
+                try: self._col_load_more.destroy()
+                except tk.TclError: pass
+                self._col_load_more = None
+            for w in parent_frame.winfo_children():
+                try: w.destroy()
+                except: pass
 
-        start = getattr(self, 'col_offset', 0)
-        for i, col in enumerate(collections):
-            current_i = start + i
-            row_pos = current_i // columns
-            col_pos  = current_i % columns
+        self._all_col_data.extend(collections)
+        self.col_offset = len(self._all_col_data)
+        self._col_total_count = total
 
-            tile = tk.Frame(parent_frame, bg=BG_SECTION, highlightbackground=FG_GOLD, highlightthickness=1, padx=15, pady=15)
-            tile.grid(row=row_pos, column=col_pos, padx=10, pady=10, sticky="nsew")
-            tile.grid_propagate(False)
-            tile.config(width=320, height=520)
+        n_rows  = (len(self._all_col_data) + _VR_C - 1) // _VR_C
+        frame_h = n_rows * _VR_COL_H + (70
+            if (self.col_offset < total and not getattr(self, "col_followed_only", tk.BooleanVar()).get())
+            else 0)
+        parent_frame.configure(height=frame_h)
+        self.col_canvas.configure(scrollregion=(0, 0, self.col_canvas.winfo_width() or 1, frame_h))
 
-            # Image
-            img_container = tk.Frame(tile, bg=BG_MAIN, width=290, height=163)
-            img_container.pack_propagate(False)
-            img_container.pack(fill="x", pady=(0, 10))
-            img_lbl = tk.Label(img_container, text=T(1999101090), bg=BG_MAIN, fg=FG_DIM, cursor="hand2")
-            img_lbl.pack(expand=True, fill="both")
+        # Load More button via place()
+        if getattr(self, "_col_load_more", None):
+            try: self._col_load_more.destroy()
+            except tk.TclError: pass
+            self._col_load_more = None
 
-            logo_url = (col.get('logo') or {}).get('thumb_320x180')
-            if logo_url:
-                threading.Thread(target=self._load_mod_image, args=(img_lbl, logo_url), daemon=True).start()
+        if (self.col_offset < total and not getattr(self, "col_followed_only", tk.BooleanVar()).get()):
+            self._col_load_more = tk.Frame(parent_frame, bg=BG_SECTION, highlightthickness=1, highlightbackground=BG_SECTION, bd=0)
+            self._col_load_more.place(x=0, y=n_rows * _VR_COL_H, relwidth=1, height=60)
+            _cb = tk.Button(self._col_load_more, text=T(1999101124), font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, pady=10, relief="flat", bd=0, cursor="hand2", command=self._load_more_collections)
+            _cb.pack(fill="both", expand=True)
+            self._bind_border_button_hover(_cb, BG_SECTION, "#253b59")
 
-            # Content
-            content = tk.Frame(tile, bg=BG_SECTION)
-            content.pack(fill="both", expand=True)
+        self._render_visible_col_rows()
 
-            raw_name = html.unescape(col.get('name', 'Unknown Collection')).upper()
-            display_name = (raw_name[:40] + "...") if len(raw_name) > 43 else raw_name
-            title_lbl = tk.Label(content, text=display_name, font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=280, justify="left", anchor="nw", height=2, cursor="hand2")
-            title_lbl.pack(fill="x")
+    def _render_visible_col_rows(self):
+        """Render only row frames near the current collections canvas viewport."""
+        try:
+            if not self.col_canvas.winfo_exists(): return
+        except tk.TclError:
+            return
 
-            tk.Frame(content, height=1, bg=FG_DIM).pack(fill="x", pady=(5, 5))
+        n_cols = len(self._all_col_data)
+        if n_cols == 0:
+            return
 
-            meta = tk.Frame(content, bg=BG_SECTION)
-            meta.pack(fill="x", pady=(5, 2))
-            author = (col.get('submitted_by') or {}).get('username', 'Unknown')
-            tk.Label(meta, text=author, font=FONT_SMALL, bg=BG_SECTION, fg="#07C1D8").pack(side="left")
-            # mod_count lives in stats on Collection objects
-            mod_count = (col.get('stats') or {}).get('mods_total', 0)
-            _ico_mod_count = load_icon("install", (12, 12))
-            tk.Label(meta, text=f"  {T(1999101407, mod_count) if mod_count == 1 else T(1999101408, mod_count)}", image=_ico_mod_count or "", compound="left" if _ico_mod_count else "none", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="right")
+        n_rows = (n_cols + _VR_C - 1) // _VR_C
+        y0_frac, y1_frac = self.col_canvas.yview()
+        sr = self.col_canvas.cget("scrollregion")
+        try:
+            total_h = float(sr.split()[3]) if sr else n_rows * _VR_COL_H
+        except (IndexError, ValueError):
+            total_h = n_rows * _VR_COL_H
 
-            # Tags - same pattern as mod browser
-            raw_tags = col.get('tags') or []
-            tags_list = [t if isinstance(t, str) else t.get('name', '') for t in raw_tags]
-            raw_t = " | ".join(tags_list) if tags_list else "No Tags"
-            display_t = (raw_t[:72] + "...") if len(raw_t) > 75 else raw_t
-            tk.Label(content, text=display_t, font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71", wraplength=280, justify="left", anchor="nw", height=2).pack(fill="x")
+        view_top = y0_frac * total_h
+        view_bot = y1_frac * total_h
+        first_r = max(0, int(view_top / _VR_COL_H) - _VR_BUF)
+        last_r = min(n_rows-1, int(view_bot / _VR_COL_H) + _VR_BUF)
 
-            summary = html.unescape(col.get('summary') or col.get('description_plaintext') or 'No description.')
-            summary_lbl = tk.Label(content, text=summary[:200], font=FONT_SMALL, bg=BG_SECTION, fg="#bbbbbb", wraplength=280, justify="left", anchor="nw", cursor="hand2")
-            summary_lbl.pack(fill="both", expand=True, pady=10)
+        stale = [r for r in list(self._col_virt_rows) if r < first_r - _VR_BUF or r > last_r + _VR_BUF]
+        for r in stale:
+            try: self._col_virt_rows[r].destroy()
+            except tk.TclError: pass
+            del self._col_virt_rows[r]
 
-            # Bottom buttons
-            btn_frame = tk.Frame(tile, bg=BG_SECTION)
-            btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
+        parent = self.col_scroll_frame
+        for r in range(first_r, last_r + 1):
+            if r in self._col_virt_rows:
+                continue
+            start = r * _VR_C
+            row_cols = self._all_col_data[start : start + _VR_C]
+            if not row_cols:
+                continue
+            row_frame = tk.Frame(parent, bg=BG_MAIN)
+            for c in range(_VR_C):
+                row_frame.columnconfigure(c, weight=1, minsize=370)
+            row_frame.place(x=0, y=r * _VR_COL_H, relwidth=1, height=_VR_COL_H)
+            for col_pos, col in enumerate(row_cols):
+                self._build_collection_tile(row_frame, col, col_pos)
+            self._col_virt_rows[r] = row_frame
 
-            cid   = str(col.get('id'))
-            cname = html.unescape(col.get('name', ''))
-            is_followed = cid in self._collection_follow_states
+    def _build_collection_tile(self, row_frame, col, col_pos):
+        """Builds one collection tile at the given column position inside row_frame."""
+        tile = tk.Frame(row_frame, bg=BG_SECTION, highlightbackground=FG_GOLD, highlightthickness=1, padx=15, pady=15)
+        tile.grid(row=0, column=col_pos, padx=10, pady=10, sticky="nsew")
+        tile.pack_propagate(False)
+        tile.grid_propagate(False)
+        tile.config(width=320, height=520)
 
-            col_url = (col.get('profile_url')
-                       or col.get('url')
-                       or f"https://mod.io/g/anno-117-pax-romana/c/{col.get('name_id', '')}")
+        img_container = tk.Frame(tile, bg=BG_MAIN, width=290, height=163)
+        img_container.pack_propagate(False)
+        img_container.pack(fill="x", pady=(0, 10))
+        img_lbl = tk.Label(img_container, text=T(1999101090), bg=BG_MAIN, fg=FG_DIM, cursor="hand2")
+        img_lbl.pack(expand=True, fill="both")
+        logo_url = (col.get("logo") or {}).get("thumb_320x180")
+        if logo_url:
+            threading.Thread(target=self._load_mod_image, args=(img_lbl, logo_url), daemon=True).start()
 
-            _ico_cvis = load_icon("collection_visit", (14, 14))
-            visit_btn = tk.Button(btn_frame, text=T(1999101168), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, relief="flat", cursor="hand2", image=_ico_cvis, compound="left" if _ico_cvis else "none", command=lambda u=col_url: webbrowser.open_new_tab(u))
-            if _ico_cvis: visit_btn.image = _ico_cvis
-            visit_btn.pack(side="left")
-            self._bind_hover(visit_btn, BG_MAIN)
-            visit_btn.pack(side="left")
-            self._bind_hover(visit_btn, BG_MAIN)
+        content_frame = tk.Frame(tile, bg=BG_SECTION)
+        content_frame.pack(fill="both", expand=True)
 
-            # Click image or title or summary → detail popup
-            for widget in [img_lbl, img_container, content, summary_lbl, title_lbl]:
-                widget.bind("<Button-1>", lambda e, c=col, u=col_url, ci=cid, cn=cname:self._show_collection_details(c, u, ci, cn))
+        raw_name = html.unescape(col.get("name", "Unknown Collection")).upper()
+        display_name = (raw_name[:40] + "...") if len(raw_name) > 43 else raw_name
+        title_lbl = tk.Label(content_frame, text=display_name, font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=280, justify="left", anchor="nw", height=2, cursor="hand2")
+        title_lbl.pack(fill="x")
+        tk.Frame(content_frame, height=1, bg=FG_DIM).pack(fill="x", pady=(5, 5))
 
-            # Follow area - rebuilt in-place
-            follow_area = tk.Frame(btn_frame, bg=BG_SECTION)
-            follow_area.pack(side="right")
+        meta = tk.Frame(content_frame, bg=BG_SECTION)
+        meta.pack(fill="x", pady=(5, 2))
+        author = (col.get("submitted_by") or {}).get("username", "Unknown")
+        tk.Label(meta, text=author, font=FONT_SMALL, bg=BG_SECTION, fg="#07C1D8").pack(side="left")
+        mod_count = (col.get("stats") or {}).get("mods_total", 0)
+        _ico_mc = load_icon("install", (12, 12))
+        tk.Label(meta, text=f"  {T(1999101407, mod_count) if mod_count == 1 else T(1999101408, mod_count)}", image=_ico_mc or "", compound="left" if _ico_mc else "none", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="right")
 
-            if is_followed:
-                self._apply_followed_state(follow_area, cid, cname)
-            else:
-                _ico_fol = load_icon("follow", (24, 24))
-                btn_follow = tk.Button(follow_area, text=T(1999101179), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", activebackground="#39f085", relief="flat", cursor="hand2", image=_ico_fol, compound="left" if _ico_fol else "none", command=lambda cid_=cid, cn=cname, fa=follow_area: self._follow_collection(cid_, cn, fa))
-                if _ico_fol: btn_follow.image = _ico_fol
-                btn_follow.pack()
-                self._bind_hover(btn_follow, "#2ecc71", "#39f085")
+        raw_tags = col.get("tags") or []
+        tags_list = [t if isinstance(t, str) else t.get("name", "") for t in raw_tags]
+        raw_t = " | ".join(tags_list) if tags_list else "No Tags"
+        display_t = (raw_t[:72] + "...") if len(raw_t) > 75 else raw_t
+        tk.Label(content_frame, text=display_t, font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71", wraplength=280, justify="left", anchor="nw", height=2).pack(fill="x")
 
-        self.col_offset = start + len(collections)
+        summary = html.unescape(col.get("summary") or col.get("description_plaintext") or "No description.")
+        summary_lbl = tk.Label(content_frame, text=summary[:200], font=FONT_SMALL, bg=BG_SECTION, fg="#bbbbbb", wraplength=280, justify="left", anchor="nw", cursor="hand2")
+        summary_lbl.pack(fill="both", expand=True, pady=10)
 
-        # Load more
-        if self.col_offset < total and not getattr(self, 'col_followed_only', tk.BooleanVar()).get():
-            more_border = tk.Frame(parent_frame, bg=BG_SECTION, highlightthickness=1, highlightbackground=BG_SECTION, bd=0)
-            more_border.grid(row=(self.col_offset // columns) + 1, column=0, columnspan=columns, sticky="ew", pady=20)
-            more_btn = tk.Button(more_border, text=T(1999101124), font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, pady=10, relief="flat", bd=0, cursor="hand2", command=lambda: self._load_more_collections(parent_frame))
-            more_btn.pack(fill="both", expand=True)
-            self._bind_border_button_hover(more_btn, BG_SECTION, "#253b59")
+        btn_frame = tk.Frame(tile, bg=BG_SECTION)
+        btn_frame.pack(side="bottom", fill="x", pady=(10, 0))
+
+        cid = str(col.get("id"))
+        cname = html.unescape(col.get("name", ""))
+        is_followed = cid in self._collection_follow_states
+        col_url = (col.get("profile_url") or col.get("url")
+                   or f"https://mod.io/g/anno-117-pax-romana/c/{col.get('name_id', '')}")
+
+        _ico_cvis = load_icon("collection_visit", (14, 14))
+        visit_btn = tk.Button(btn_frame, text=T(1999101168), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, relief="flat", cursor="hand2", image=_ico_cvis, compound="left" if _ico_cvis else "none", command=lambda u=col_url:webbrowser.open_new_tab(u))
+        if _ico_cvis: visit_btn.image = _ico_cvis
+        visit_btn.pack(side="left")
+        self._bind_hover(visit_btn, BG_MAIN)
+
+        for widget in [img_lbl, img_container, content_frame, summary_lbl, title_lbl]:
+            widget.bind("<Button-1>", lambda e, c=col, u=col_url, ci=cid, cn=cname:self._show_collection_details(c, u, ci, cn))
+
+        follow_area = tk.Frame(btn_frame, bg=BG_SECTION)
+        follow_area.pack(side="right")
+        if is_followed:
+            self._apply_followed_state(follow_area, cid, cname)
+        else:
+            _ico_fol = load_icon("follow", (24, 24))
+            btn_follow = tk.Button(follow_area, text=T(1999101179), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", activebackground="#39f085", relief="flat", cursor="hand2", image=_ico_fol, compound="left" if _ico_fol else "none", command=lambda ci=cid, cn=cname, fa=follow_area: self._follow_collection(ci, cn, fa))
+            if _ico_fol: btn_follow.image = _ico_fol
+            btn_follow.pack()
+            self._bind_hover(btn_follow, "#2ecc71", "#39f085")
 
     def _show_collection_details(self, col, col_url, cid, cname):
         """Opens a scrollable detail popup for a collection, listing all its mods."""
@@ -6795,13 +7484,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         except tk.TclError:
             pass
 
-    def _load_more_collections(self, parent_frame):
-        """Appends the next page of collections to the existing tile grid by incrementing the offset and launching another _fetch_collections_worker thread."""
+    def _load_more_collections(self):
+        """Fetches the next batch of collections (virtual-scroll aware)."""
+        if getattr(self, "_col_load_more", None):
+            try: self._col_load_more.destroy()
+            except tk.TclError: pass
+            self._col_load_more = None
+        n_rows = (len(getattr(self, "_all_col_data", [])) + _VR_C - 1) // _VR_C
         load_lbl = tk.Label(self.col_scroll_frame, text=T(1999101096), bg=BG_MAIN, fg=FG_DIM)
-        load_lbl.grid(row=(self.col_offset // 3) + 2, column=0, columnspan=3)
-        q = self.col_search_var.get() if hasattr(self, 'col_search_var') else ""
-        tag = getattr(self, 'col_tag_filter', '')
-        threading.Thread(target=self._fetch_collections_worker, args=(parent_frame, load_lbl, q, self.col_offset, tag), daemon=True).start()
+        load_lbl.place(x=0, y=n_rows * _VR_COL_H, relwidth=1, height=40)
+        q = self.col_search_var.get() if hasattr(self, "col_search_var") else ""
+        tag = getattr(self, "col_tag_filter", "")
+        threading.Thread(target=self._fetch_collections_worker, args=(self.col_scroll_frame, load_lbl, q, self.col_offset, tag), daemon=True).start()
 
     def _follow_collection(self, collection_id, collection_name, follow_area):
         """Follows the collection on mod.io and installs all its mods."""
@@ -6934,7 +7628,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             success = (err_ref == 15004)
                         if success:
                             self._subscription_states[mid] = True
-                            self._store_modio_mapping(mid, mname)
+                            # Removed premature mapping from here
                     except Exception as e:
                         print(f"[Collection] Subscribe failed for '{mname}': {e}")
 
@@ -6942,6 +7636,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         dl_url = (mod.get('modfile') or {}).get('download', {}).get('binary_url')
                         if dl_url:
                             to_install.append((mid, mname, dl_url))
+                    else:
+                        # Only attempt fuzzy-mapping if the mod is ALREADY installed locally. (If it's in to_install, run_install_logic will map it perfectly during extraction).
+                        self._store_modio_mapping(mid, mname)
 
                 self._save_subscriptions()
                 _set_progress(50)
@@ -6954,10 +7651,19 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     if str(collection_id) in self._collection_follow_states:
                         self._collection_follow_states[str(collection_id)]['last_seen_ts'] = datetime.now().timestamp()
                         self._save_collection_follows()
+                    # All mods already installed — still create the collection preset
+                    self.mods = self.get_all_mod_metadata()
+                    rev = {v: k for k, v in self._subscription_modio_map.items()}
+                    already_ids = []
+                    for mod in mods:
+                        local_id = rev.get(str(mod.get('id', '')))
+                        if local_id:
+                            already_ids.append(local_id)
                     import time as _time
                     _time.sleep(0.8)
                     self.after(0, _close_progress)
                     self.after(0, lambda: self._imperial_alert(T(1999101305), T(1999101404, collection_name)))
+                    self.after(0, lambda ids=already_ids, pn=collection_name: self._create_collection_preset(pn, ids))
                     return
 
                 _set_phase(T(1999101443, len(to_install)))
@@ -6965,19 +7671,21 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     _set_mod(mname)
                     _set_progress(50 + (idx / len(to_install)) * 50)
                     try:
-                        download_dir = "downloads"
-                        os.makedirs(download_dir, exist_ok=True)
+                        import tempfile as _tf
+                        _tmp_dir = _tf.mkdtemp(prefix="anno117_col_")
                         safe  = "".join(c for c in mname if c.isalnum() or c in (' ', '_')).rstrip()
-                        zpath = os.path.abspath(
-                            os.path.join(download_dir, f"{safe.replace(' ', '_')}.zip"))
+                        zpath = os.path.join(_tmp_dir, f"{safe.replace(' ', '_')}.zip")
                         r = requests.get(dl_url, stream=True, timeout=30)
                         r.raise_for_status()
                         with open(zpath, 'wb') as f:
                             for chunk in r.iter_content(8192):
                                 f.write(chunk)
                         done_ev = threading.Event()
-                        self.after(0, lambda zp=zpath, m=mid, mn=mname, ev=done_ev:
-                                   [self._silent_finalize(zp, m, mn), ev.set()])
+                        def _col_install(zp=zpath, td=_tmp_dir, m=mid, mn=mname, ev=done_ev):
+                            self._silent_finalize(zp, m, mn)
+                            shutil.rmtree(td, ignore_errors=True)
+                            ev.set()
+                        self.after(0, _col_install)
                         done_ev.wait()
                     except Exception as e:
                         print(f"[Collection] Failed to install '{mname}': {e}")
@@ -6990,26 +7698,31 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self._collection_follow_states[str(collection_id)]['last_seen_ts'] = datetime.now().timestamp()
                     self._save_collection_follows()
 
-                # Resolve local ModIDs for all collection mods to write the preset
+                # Resolve local ModIDs using the subscription map (populated during the subscribe loop above) — more reliable than name-matching
                 self.mods = self.get_all_mod_metadata()
-                import re as _re
-                def _tok(s):
-                    return set(_re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
-
+                # Build reverse map: modio_id → local_mod_id
+                rev = {v: k for k, v in self._subscription_modio_map.items()}
                 local_mod_ids = []
                 for mod in mods:
-                    mname = html.unescape(mod.get('name', ''))
-                    mtok  = _tok(mname)
-                    local = next(
-                        (m for m in self.mods
-                         if not m.get('parent_path')
-                         and (m.get('name', '').lower().replace(' ', '') == mname.lower().replace(' ', '')
-                              or _tok(m.get('name', '')).issubset(mtok)
-                              or mtok.issubset(_tok(m.get('name', ''))))),
-                        None
-                    )
-                    if local:
-                        local_mod_ids.append(local['id'])
+                    mid_str = str(mod.get('id', ''))
+                    local_id = rev.get(mid_str)
+                    if local_id:
+                        local_mod_ids.append(local_id)
+                    else:
+                        # Fallback: name match for mods whose mapping wasn't stored yet
+                        import re as _re
+                        def _tok(s): return set(_re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
+                        mname = html.unescape(mod.get('name', ''))
+                        mtok  = _tok(mname)
+                        local = next(
+                            (m for m in self.mods
+                             if not m.get('parent_path')
+                             and (m.get('name', '').lower().replace(' ', '') == mname.lower().replace(' ', '')
+                                  or _tok(m.get('name', '')).issubset(mtok)
+                                  or mtok.issubset(_tok(m.get('name', ''))))),
+                            None)
+                        if local:
+                            local_mod_ids.append(local['id'])
 
                 import time as _time
                 _time.sleep(0.8)
@@ -7219,9 +7932,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         try:
             active_set = set(mod_ids)
-            # Get all top-level installed mods so every one gets an explicit entry
-            all_mods = self.get_all_mod_metadata()
-            top_mods = [m for m in all_mods if not m.get('parent_path')]
+            # Force fresh scan so mods installed by _silent_finalize are included
+            self.mods = self.get_all_mod_metadata()
+            all_mods  = self.mods
+            top_mods  = [m for m in all_mods if not m.get("parent_path")]
+            # Expand active_set: translate modio numeric IDs to local ModIDs so the preset correctly activates collection mods
+            rev = {v: k for k, v in self._subscription_modio_map.items()}
+            for cid in list(active_set):
+                local_id = rev.get(str(cid))
+                if local_id:
+                    active_set.add(local_id)
 
             lines = [f"# {safe_name}\n", "# EnableNewMods\n"]  # new mods OFF by default
             for m in top_mods:
@@ -7236,7 +7956,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             # Load as active profile
             if os.path.exists(self.active_profile_path):
                 shutil.copy2(self.active_profile_path, self.active_profile_path + ".bak")
-            shutil.copy2(file_path, self.active_profile_path)
+            self._apply_preset_with_full_coverage(file_path)
 
             self.current_profile_name = display_name
             self.refresh_presets_list()

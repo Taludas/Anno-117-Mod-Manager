@@ -207,7 +207,7 @@ adjunto</Text>
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>Si se desactiva, los nuevos mods aparecerán en la lista pero permanecerán desmarcados hasta que se activen manualmente.</Text>
+    <Text>"Desactivar siempre": Los mods recién instalados se inician sin marcar. "Seguir estado actual": Mantiene activo un mod si ya estaba instalado y activo antes.</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -889,11 +889,13 @@ Vuelve a conectar tu cuenta en Configuración para seguir utilizando Mod Browser
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>Cambiado a Default. Se han activado todos los mods instalados.</Text>
+    <Text>Cambiado a Default.
+
+Se han activado todos los mods instalados.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>El perfil "Predeterminado" es un requisito del sistema y no puede eliminarse.</Text>
+    <Text>El perfil "Vanilla"/"Default" es un requisito del sistema y no puede eliminarse.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1814,5 +1816,63 @@ Ejecutarlos juntos puede causar inestabilidad o errores.
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0} de {1} colecciones</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>Cambiado a Vainilla.
+
+Todos los mods instalados han sido desactivados. El juego se puede utilizar tal y como está, sin mods.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 Carpeta de documentos (anulación)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>Sólo es necesario si la carpeta Documentos se ha movido a una ubicación no estándar. Seleccione la carpeta "Anno 117 - Pax Romana" dentro de su nueva ubicación de Documentos.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>Claro</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>Activar siempre</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>Desactivar siempre</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>Seguir el estado actual</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>No se ha podido recuperar la URL de descarga de mod.io.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Anno 117 Carpeta de documentos no encontrada</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>La aplicación no ha podido encontrar automáticamente su carpeta de documentos Anno 117 - Pax Romana.
+
+Esto puede ocurrir cuando la carpeta Documentos se ha reubicado en una ubicación no estándar.
+
+Seleccione la carpeta "Documentos/Anno 117 - Pax Romana" en el siguiente cuadro de diálogo.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>Seleccionar Documentos/Anno 117 - Pax Romana Carpeta</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>Este mod está suscrito en mod.io, pero aún no se ha instalado localmente. Haz clic en «Reinstalar» para descargarlo.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>Este mod está instalado localmente, pero ya no estás suscrito a él en mod.io. No recibirás notificaciones de actualizaciones. Haz clic en «Instalar» para volver a suscribirte.</Text>
   </Text>
 </Texts>

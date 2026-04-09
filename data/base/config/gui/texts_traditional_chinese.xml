@@ -207,7 +207,7 @@
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>如果停用，新 mod 會出現在清單中，但在手動啟用前會保持未選取狀態。</Text>
+    <Text>「總是停用」：新 mod 會出現在啟動清單中，但保持未勾選。「遵循目前狀態」：如果之前已經安裝並啟用的 MOD，則保持其啟用狀態。</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -882,11 +882,13 @@
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>切換到預設值。所有已安裝的 MOD 已啟動。</Text>
+    <Text>切換到預設值。
+
+所有已安裝的 MOD 已啟動。</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>預設」設定檔是系統需求，無法刪除。</Text>
+    <Text>'Vanilla'/'Default'設定檔是系統需求，無法刪除。</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1807,5 +1809,63 @@
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0} 的 {1} 集合</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>改用 Vanilla。
+
+所有已安裝的 MOD 已停用。遊戲現在可以在未修改的狀態下使用。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 文件夾 (覆寫)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>只有當您的 Documents 資料夾移至非標準位置時才需要。在新的文件位置中選擇 Anno 117 - Pax Romana 資料夾。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>清除</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>永遠啟動</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>永遠停用</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>遵循目前狀態</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>無法從 mod.io 擷取下載 URL。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>未找到 Anno 117 文件夾</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>應用程式無法自動找到您的 Anno 117 - Pax Romana 文件夾。
+
+當您的文件資料夾重新定位到非標準位置時，可能會發生這種情況。
+
+請在下一個對話框中選擇 Documents/Anno 117 - Pax Romana 資料夾。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>選擇文件/Anno 117 - 大同文件夾</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>您已在 mod.io 上訂閱此模組，但尚未在本地安裝。請點擊「重新安裝」以下載該模組。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>此模組已在本機安裝，但您已不再於 mod.io 上訂閱該模組。您將不會收到更新通知。請點擊「安裝」以重新訂閱。</Text>
   </Text>
 </Texts>

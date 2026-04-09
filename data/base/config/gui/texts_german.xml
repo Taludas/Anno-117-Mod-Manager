@@ -207,7 +207,7 @@ verfügbar</Text>
   </Text>
   <Text>
     <LineId>1999101050</LineId>
-    <Text>Wenn diese Option deaktiviert ist, werden neue Mods in der Mod-Liste angezeigt, bleiben aber deaktiv, bis sie manuell aktiviert werden.</Text>
+    <Text>"Immer deaktivieren": Neue installierte Mods bleiben zunächst deaktiviert. "Aktuellem Stand folgen": Neu installierte Mods sind aktiv, wenn sie zuvor bereits installiert und aktiv war (Update).</Text>
   </Text>
   <Text>
     <LineId>1999101051</LineId>
@@ -885,11 +885,13 @@ Bitte verbinden Sie Ihr Konto in den Einstellungen erneut, um den Mod-Browser we
   </Text>
   <Text>
     <LineId>1999101223</LineId>
-    <Text>Auf Standard umgeschaltet. Alle installierten Mods sind aktiviert worden.</Text>
+    <Text>Auf "Default" umgeschaltet.
+
+Alle installierten Mods sind aktiviert worden.</Text>
   </Text>
   <Text>
     <LineId>1999101224</LineId>
-    <Text>Das Profil "Standard" ist eine Systemvoraussetzung und kann nicht gelöscht werden.</Text>
+    <Text>Das Profil "Vanilla"/"Default" ist eine Systemvoraussetzung und kann nicht gelöscht werden.</Text>
   </Text>
   <Text>
     <LineId>1999101225</LineId>
@@ -1342,7 +1344,7 @@ Auch diese entfernen?</Text>
     <LineId>1999101363</LineId>
     <Text>'{0}' entfolgen?
 
-Möchten Sie auch alle Mods, die ausschließlich zu dieser Sammlung gehören, abbestellen und entfernen?</Text>
+Möchten Sie auch alle Mods, die ausschließlich zu dieser Sammlung gehören, deabonnieren und entfernen?</Text>
   </Text>
   <Text>
     <LineId>1999101364</LineId>
@@ -1751,7 +1753,7 @@ Wie möchten Sie vorgehen?</Text>
   </Text>
   <Text>
     <LineId>1999101449</LineId>
-    <Text>{0} von {1} Mods gefunden</Text>
+    <Text>{0} von {1} Mods angezeigt</Text>
   </Text>
   <Text>
     <LineId>1999101450</LineId>
@@ -1812,5 +1814,63 @@ Wie möchten Sie vorgehen?</Text>
   <Text>
     <LineId>1999101464</LineId>
     <Text>{0} von {1} Sammlungen</Text>
+  </Text>
+  <Text>
+    <LineId>1999101465</LineId>
+    <Text>Umgestellt auf Vanilla.
+
+Alle installierten Mods wurden deaktiviert. Das Spiel kann nun im unmodifizierten Zustand verwendet werden.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101466</LineId>
+    <Text>Anno 117 Dokumente-Ordner (überschreiben)</Text>
+  </Text>
+  <Text>
+    <LineId>1999101467</LineId>
+    <Text>Nur relevant, wenn sich der Ordner "Dokumente" an einen anderen Ort als dem Standard befindet. Wählen Sie den Ordner "Anno 117 - Pax Romana" in Ihrem neuen Dokumente-Ordner.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101468</LineId>
+    <Text>Entfernen</Text>
+  </Text>
+  <Text>
+    <LineId>1999101469</LineId>
+    <Text>Immer aktivieren</Text>
+  </Text>
+  <Text>
+    <LineId>1999101470</LineId>
+    <Text>Immer deaktivieren</Text>
+  </Text>
+  <Text>
+    <LineId>1999101471</LineId>
+    <Text>Aktuellem Stand folgen</Text>
+  </Text>
+  <Text>
+    <LineId>1999101472</LineId>
+    <Text>Die Download-URL konnte nicht von mod.io abgerufen werden.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101473</LineId>
+    <Text>Anno 117 Dokumente-Ordner nicht gefunden</Text>
+  </Text>
+  <Text>
+    <LineId>1999101474</LineId>
+    <Text>Die App konnte Ihren Anno 117 - Pax Romana Dokumente-Ordner nicht automatisch finden.
+
+Dies kann passieren, wenn Ihr Dokumente-Ordner an einen nicht standardmäßigen Ort verschoben wurde.
+
+Bitte wählen Sie im nächsten Dialog den Ordner "Dokumente\Anno 117 - Pax Romana" aus.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101475</LineId>
+    <Text>Dokumente/Anno 117 - Pax Romana Ordner auswählen</Text>
+  </Text>
+  <Text>
+    <LineId>1999101476</LineId>
+    <Text>Diese Mod ist auf mod.io abonniert, wurde aber noch nicht lokal installiert. Klicke auf „Neu installieren“, um ihn herunterzuladen.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101477</LineId>
+    <Text>Diese Mod ist lokal installiert, aber er ist auf mod.io nicht mehr abonniert. Sie erhälten keine Benachrichtigungen über Updates. Klicken Sie auf „Installieren“, um ihn erneut zu abonnieren.</Text>
   </Text>
 </Texts>
