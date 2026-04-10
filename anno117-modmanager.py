@@ -33,6 +33,8 @@ import io
 import html as html_lib
 import tempfile
 
+import _version
+
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
     HAS_DND = True
@@ -299,7 +301,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def __init__(self):
         """Initialises the main application window, sets up all state variables, loads settings and metadata, builds the UI and schedules the language-picker / first-run sequence."""
         super().__init__()
-        self.title("Anno 117 Mod Manager")
+        self.title("Anno 117 Mod Manager" + f' v{_version.__VERSION__}')
         self.iconbitmap(resource_path("data/ui/anno117_mod_manager.ico"))
         self.geometry("1440x900")
         self.configure(bg=BG_MAIN)

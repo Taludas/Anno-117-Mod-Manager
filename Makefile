@@ -1,13 +1,14 @@
 
-PACKAGE=tamm
+PACKAGE=anno117-modmanager
+VENVNAME=tamm
 
 ##############################################################################
 # do this while not in venv
 venv:
-	python -m venv .$(PACKAGE).venv
+	python -m venv .$(VENVNAME).venv
 
 venv.clean:
-	rm -rfd .$(PACKAGE).venv
+	rm -rfd .$(VENVNAME).venv
 
 
 
