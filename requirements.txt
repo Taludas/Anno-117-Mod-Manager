@@ -1,0 +1,5 @@
+Pillow
+requests
+bs4
+beautifulsoup4
+tkinterdnd2
