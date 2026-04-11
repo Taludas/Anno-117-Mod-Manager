@@ -1,0 +1,39 @@
+
+.vs/
+.idea/
+
+# Executables
+*.exe
+*.out
+*.app
+
+# zip files
+*.zip
+
+# VS Code
+*.vscode
+
+# working directories
+working/
+.modcache/
+__pycache__/
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+build/
+
+# PyCharm
+.idea/
+
+# Visual SlickEdit projct files
+*.vtg
+*.vpj
+*.vpw
+*.vpwhist
+
+# anno rda reference file -- too large to track
+config.rda/
+
