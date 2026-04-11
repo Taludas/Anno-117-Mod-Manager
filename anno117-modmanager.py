@@ -2819,7 +2819,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 upd_lbl.bind("<Enter>", on_enter)
                 upd_lbl.bind("<Leave>", on_leave)
                 upd_lbl.bind("<Button-1>", _quick_update)
-                self._attach_tooltip(upd_lbl, T(1999101479))
+                local_mod_version = current_mod['version']
+                modio_mod_version = 'todo: obtain-this-data'
+                self._attach_tooltip(upd_lbl, text = T(1999101479, local_mod_version, modio_mod_version))
+
             _ico_mb = load_icon("modio_mod", (14, 14))
             if _ico_mb:
                 mb_lbl = tk.Label(row, image=_ico_mb, bg=row_bg, cursor="hand2")
@@ -5130,7 +5133,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if is_installed_locally:
                     _lbl_nosub = tk.Label(install_area, text="!", font=FONT_UI_BOLD, fg=FG_GOLD, bg=BG_SECTION)
                     _lbl_nosub.pack(side="left", padx=(0, 4))
-                    self._attach_tooltip(_lbl_nosub, T(1999101477))
+
+                    # self._attach_tooltip(_lbl_nosub, T(1999101477))
+                    self._attach_tooltip(_lbl_nosub, '1477 text')
 
                 _ico_inst = load_icon("install_mod", (32, 32))
                 btn_install = tk.Button(install_area, text=T(1999101169), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", activebackground="#39f085", relief="flat", cursor="hand2", image=_ico_inst, compound="left" if _ico_inst else "none", command=lambda u=dl_url, nm=mod['name'], mid=tile_mod_id, ia=install_area: self._download_and_install(u, nm, mid, ia))
@@ -5891,7 +5896,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if missing_local:
                 _lbl_sub = tk.Label(install_area, text="!", font=FONT_UI_BOLD, fg=FG_GOLD, bg=BG_SECTION)
                 _lbl_sub.pack(side="left", padx=(0, 4))
-                self._attach_tooltip(_lbl_sub, T(1999101476))
+                # self._attach_tooltip(_lbl_sub, T(1999101476))
+                self._attach_tooltip(_lbl_sub, '1476 text')
 
             # --- 1. THE REINSTALL BUTTON (↻) ---
             def _confirm_reinstall():
