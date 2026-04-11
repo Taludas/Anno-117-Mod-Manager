@@ -1881,4 +1881,20 @@ Bitte wählen Sie im nächsten Dialog den Ordner "Dokumente\Anno 117 - Pax Roman
     <LineId>1999101479</LineId>
     <Text>Es gibt eine Abweichung in der Versionsnummer zwischen der aktuell installierten lokalen Version des Mods und der neuesten Version auf mod.io! Klicken Sie auf das !, um die Mod direkt mit der neuesten Version von mod.io zu aktualisieren.</Text>
   </Text>
+  <Text>
+    <LineId>1999101480</LineId>
+    <Text>Update verfügbar</Text>
+  </Text>
+  <Text>
+    <LineId>1999101481</LineId>
+    <Text>Sie verwenden Version {0} der App. Version {1} ist jetzt verfügbar.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101482</LineId>
+    <Text>Jetzt herunterladen</Text>
+  </Text>
+  <Text>
+    <LineId>1999101483</LineId>
+    <Text>Später</Text>
+  </Text>
 </Texts>

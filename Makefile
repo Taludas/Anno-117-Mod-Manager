@@ -1,4 +1,3 @@
-
 PACKAGE=anno117-modmanager
 VENVNAME=tamm
 
@@ -8,7 +7,7 @@ venv:
 	python -m venv .$(VENVNAME).venv
 
 venv.clean:
-	rm -rfd .$(VENVNAME).venv
+	rd /s /q .$(VENVNAME).venv
 
 
 
@@ -31,13 +30,12 @@ libs.clean:
 
 # exe make targets ###########################
 exe: libs
-	pyinstaller --onefile $(PACKAGE).py
+	pyinstaller --onefile --windowed --add-data "data;data" --name "Anno 117 Mod Manager" $(PACKAGE).py
 
 exe.clean:
-	rm -rfd build
-	#rm -rfd dist
-	rm dist/$(PACKAGE).exe
-	rm $(PACKAGE).spec
+	rd /s /q build
+	del /q dist\$(PACKAGE).exe
+	del /q $(PACKAGE).spec
 
 
 # general make targets ###########################

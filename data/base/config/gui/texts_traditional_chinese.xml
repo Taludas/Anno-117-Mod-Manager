@@ -1876,4 +1876,20 @@
     <LineId>1999101479</LineId>
     <Text>當前安裝的本地版本 mod 與 mod.io 上的最新版本在版本號上不匹配！點擊直接從 mod.io 更新 mod 的最新版本。</Text>
   </Text>
+  <Text>
+    <LineId>1999101480</LineId>
+    <Text>可更新</Text>
+  </Text>
+  <Text>
+    <LineId>1999101481</LineId>
+    <Text>您正在運行版本 {0} 的應用程式。版本 {1} 現在可用。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101482</LineId>
+    <Text>立即下載</Text>
+  </Text>
+  <Text>
+    <LineId>1999101483</LineId>
+    <Text>稍後</Text>
+  </Text>
 </Texts>

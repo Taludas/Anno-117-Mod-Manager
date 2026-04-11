@@ -1885,4 +1885,20 @@ Wybierz folder "Documents\Anno 117 - Pax Romana" w następnym oknie dialogowym.<
     <LineId>1999101479</LineId>
     <Text>Występuje niezgodność numerów wersji między aktualnie zainstalowaną lokalną wersją moda a najnowszą wersją dostępną na mod.io! Kliknij, aby bezpośrednio zaktualizować mod do najnowszej wersji z mod.io.</Text>
   </Text>
+  <Text>
+    <LineId>1999101480</LineId>
+    <Text>Dostępna aktualizacja</Text>
+  </Text>
+  <Text>
+    <LineId>1999101481</LineId>
+    <Text>Korzystasz z wersji {0} aplikacji. Wersja {1} jest już dostępna.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101482</LineId>
+    <Text>Pobierz teraz</Text>
+  </Text>
+  <Text>
+    <LineId>1999101483</LineId>
+    <Text>Później</Text>
+  </Text>
 </Texts>

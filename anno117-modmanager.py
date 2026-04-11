@@ -32,7 +32,6 @@ import time
 import io
 import html as html_lib
 import tempfile
-
 import _version
 
 try:
@@ -276,13 +275,19 @@ def T(line_id: int, *args) -> str:
 MODIO_GAME_ID = "11358"
 MODIO_BASE_URL = "https://g-11358.modapi.io/v1"
 
+# --- Version check integration ---
+try:
+    APP_VERSION = _version.__VERSION__
+except Exception:
+    APP_VERSION = "0.0.0"
+GITHUB_REPO    = "Taludas/Anno-117-Mod-Manager"
+GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
 # Virtual-scroll constants for the Mod Browser
 _VR_H   = 645   # pixel height per tile row (tile 620px + 10px top/bottom padding)
 _VR_C   = 3     # tile columns
 _VR_BUF = 2   # extra rows above/below viewport kept alive
 _VR_COL_H = 545  # pixel height per collections tile row (tile 520px + 10+15px padding)
-
-
 
 # --- Main Application Class ---
 def _open_path(path):
@@ -475,7 +480,57 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             return
         self._build_sidebar()
         self.switch_tab("News")
-        self.check_first_run()
+        self.check_first_run(),
+        self._check_for_update()
+
+    def _check_for_update(self):
+        """Checks GitHub releases API for a newer version and prompts the user if one is found. Runs in a background thread to avoid blocking startup."""
+        def _worker():
+            try:
+                res = requests.get(GITHUB_API_URL, timeout=8, headers={"Accept": "application/vnd.github+json"})
+                if res.status_code != 200:
+                    return
+                latest_tag = res.json().get("tag_name", "").lstrip("vV").strip()
+                release_url = res.json().get("html_url", f"https://github.com/{GITHUB_REPO}/releases/latest")
+                if not latest_tag:
+                    return
+                # Compare version tuples
+                def _parse(v):
+                    try: return tuple(int(x) for x in v.split("."))
+                    except: return (0,)
+                if _parse(latest_tag) > _parse(APP_VERSION):
+                    self.after(0, lambda: self._show_update_prompt(latest_tag, release_url))
+            except Exception as e:
+                print(f"[update check] {e}")
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _show_update_prompt(self, new_version, release_url):
+        """Shows a non-blocking update notification dialog."""
+        win_w, win_h = 480, 220
+        upd_win = tk.Toplevel(self)
+        upd_win.title(T(1999101480))
+        upd_win.geometry(f"{win_w}x{win_h}")
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width()  // 2) - (win_w // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (win_h // 2)
+        upd_win.geometry(f"+{x}+{y}")
+        upd_win.configure(bg=BG_MAIN)
+        upd_win.transient(self)
+        upd_win.resizable(False, False)
+
+        tk.Label(upd_win, text=T(1999101480), font=FONT_TITLE, bg=BG_MAIN, fg=FG_GOLD).pack(pady=(22, 6))
+        tk.Label(upd_win, text=T(1999101481, APP_VERSION, new_version), font=FONT_BODY, bg=BG_MAIN, fg=FG_MAIN, wraplength=420, justify="center").pack(pady=(0, 16))
+
+        btn_frame = tk.Frame(upd_win, bg=BG_MAIN)
+        btn_frame.pack(pady=(0, 20))
+
+        btn_dl = tk.Button(btn_frame, text=T(1999101482), font=FONT_UI_BOLD, bg="#2ecc71", fg="#000000", cursor="hand2", padx=20, relief="flat", command=lambda:[webbrowser.open_new_tab(release_url), upd_win.destroy()])
+        btn_dl.pack(side="left", padx=8)
+        self._bind_hover(btn_dl, "#2ecc71", "#39f085")
+
+        btn_later = tk.Button(btn_frame, text=T(1999101483), font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, cursor="hand2", padx=20, relief="flat", command=upd_win.destroy)
+        btn_later.pack(side="left", padx=8)
+        self._bind_hover(btn_later, BG_SECTION, BG_HOVER)
 
     def _show_language_picker(self):
         """Shows a full-window BG_SECTION overlay for language selection on first launch. Blocks until the user confirms, then destroys the overlay."""

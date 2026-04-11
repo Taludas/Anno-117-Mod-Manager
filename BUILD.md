@@ -1,31 +1,66 @@
-### Build and Installation Steps:
-The anno117-modmanager utility makes use of a virtual python environment, and creates a standalone executable, which can be copied to a local directory such as /usr/local/bin or similar.
+# Build and Installation
 
-The build process is controlled via a makefile.
+The Anno 117 Mod Manager can be built into a standalone `.exe` using PyInstaller, controlled via a Makefile.
 
-Build steps:
+## Prerequisites
+
+- Python 3.10 or newer — [python.org](https://www.python.org/downloads/)
+- GNU Make for Windows — install via winget:
+  ```
+  winget install GnuWin32.Make
+  ```
+  or via Chocolatey:
+  ```
+  choco install make
+  ```
+
+## Build Steps
+
+**1. Create the virtual environment** (run this outside of any existing venv):
 ```
-git clone git@github.com:ewjax/Anno-117-Mod-Manager.git
-cd Anno-117-Mod-Manager
 make venv
 ```
-Activate the python virtual environment, then continue the build process:
-```
-(unix): source .tamm.venv/bin/activate
-(windows): .tamm.venv\Scripts\activate
-make all
-Executable will be placed in ./dist subdirectory
-```
-Test the executable, by running it with the 'help' option:
-```
-./dist/anno117-modmanagerg -h
-```
-Assuming it shows a list of command line options, indicating it built successfully, copy the anno117-modmanagerg (or anno117-modmanagerg.exe) executable from the /dist subdirectory to somewhere in your path.
 
-Cleanup steps:
+**2. Activate the virtual environment:**
 ```
-(while still in the python virtual environment): 
+.tamm.venv\Scripts\activate
+```
+
+**3. Install dependencies and build the executable:**
+```
+make all
+```
+
+The finished executable will be placed in the `dist` subdirectory as `Anno 117 Mod Manager.exe`.
+
+**4. Test the executable:**
+```
+dist\Anno 117 Mod Manager.exe
+```
+
+## Cleanup
+
+To remove build artefacts while still inside the virtual environment:
+```
 make clean
+```
+
+Then deactivate and remove the virtual environment:
+```
 deactivate
 make venv.clean
 ```
+
+## Notes
+
+- The `data` folder (containing icons, fonts and UI assets) is automatically bundled into the executable via the `--add-data "data;data"` flag in the Makefile. Do not move or rename this folder before building.
+- If you see font or icon errors when launching the exe, run `make exe.clean` followed by `make exe` to force a clean rebuild.
+- The `requirements.txt` file must be present in the project root before running `make all`. It should contain at minimum:
+  ```
+    pillow
+    requests
+    bs4
+    beautifulsoup4
+    tkinterdnd2
+    pyinstaller
+  ```

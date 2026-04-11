@@ -1881,4 +1881,20 @@ Anno 117のメイン・インストール・ディレクトリを選択してく
     <LineId>1999101479</LineId>
     <Text>現在インストールされているローカルバージョンのMODとmod.ioで利用可能な最新バージョンの間にバージョン番号の不一致があります！クリックしてmod.ioから最新版に直接アップデートしてください。</Text>
   </Text>
+  <Text>
+    <LineId>1999101480</LineId>
+    <Text>更新あり</Text>
+  </Text>
+  <Text>
+    <LineId>1999101481</LineId>
+    <Text>アプリのバージョン {0} を実行しています。バージョン {1} が利用可能になりました。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101482</LineId>
+    <Text>今すぐダウンロード</Text>
+  </Text>
+  <Text>
+    <LineId>1999101483</LineId>
+    <Text>後日</Text>
+  </Text>
 </Texts>
