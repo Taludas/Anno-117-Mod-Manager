@@ -1877,4 +1877,12 @@ Selecione a pasta "Documents\Anno 117 - Pax Romana" na próxima caixa de diálog
     <LineId>1999101477</LineId>
     <Text>Este mod está instalado localmente, mas você não está mais inscrito nele no mod.io. Você não receberá notificações de atualização. Clique em Instalar para se inscrever novamente.</Text>
   </Text>
+  <Text>
+    <LineId>1999101478</LineId>
+    <Text>Se estiver ativado, o aplicativo saltará para a guia Ativação sempre que instalar um mod no Navegador de mods</Text>
+  </Text>
+  <Text>
+    <LineId>1999101479</LineId>
+    <Text>Há uma incompatibilidade nos números de versão entre a versão local atualmente instalada do mod e a versão mais recente disponível no mod.io! Clique para atualizar diretamente o mod com a versão mais recente do mod.io.</Text>
+  </Text>
 </Texts>

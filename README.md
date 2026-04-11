@@ -151,7 +151,7 @@ The primary tab for managing which mods are active when you launch the game.
   | ... (orange three dots) | A required dependency is not installed |
   | ⏳️ (orange hourglass) | This mod is deprecated by another active mod |
   | ⚙ (teal mod.io logo) | Mod was installed via mod.io — **clicking opens that mod in the Mod Browser** |
-  | **!** (gold, before ⚙) | A newer version is available on mod.io — **clicking directly starts the update download** |
+  | **!** (gold, before ⚙) | There is a mismatch in version numbers between the currently installed local version of the mod and the newest version available on mod.io! Click to directly update the mod with the newest version from mod.io. (WARNING: this requires mod authors to accurately supply matching version numbers across the modinfo.json file and the mod.io description - there are mods out there that do not follow this standard; those will therefore always show the "!", no matter what you do.) — **clicking directly starts the update download** |
 
 - Mod names are coloured **red** for conflicts, **orange** for missing dependencies or deprecation.
 - Sub-mods (child folders inside a mod) appear indented below their parent and cannot be uninstalled on their own.
@@ -302,6 +302,7 @@ The Settings tab is scrollable — use the mouse wheel or the scrollbar on the r
   - *Always activate* — newly installed mods are enabled immediately.
   - *Always deactivate* — mods are added to the list but left disabled.
   - *Follow current state* — if the mod was already active (e.g. a reinstall or update), it stays active; otherwise it stays disabled.
+- **Jump to Activation behaviour** - enabled by default - if the option is enabled, the app jumps to the Mod Activation tab with the newly installed mod/mod collection selected. Disable to not jump tabs after installing something from the Mod Browser/Collections tab.
 
 #### Game Files
 

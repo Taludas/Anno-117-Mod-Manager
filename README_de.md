@@ -148,7 +148,7 @@ Der primäre Tab zum Verwalten, welche Mods beim Spielstart aktiv sind.
   | ... (orangene drei Punkte) | Eine erforderliche Abhängigkeit ist nicht installiert |
   | ⏳️ (orangene Sanduhr) | Dieser Mod wurde durch einen anderen aktiven Mod ersetzt |
   | ⚙ (blaues mod.io logo) | Mod wurde aus dem Mod-Browser installiert — **Klick öffnet diesen Mod im Mod-Browser** |
-  | **!** (gold, vor ⚙) | Eine neuere Version ist auf mod.io verfügbar — **Klick startet direkt den Update-Download** |
+  | **!** (gold, vor ⚙) | Die Versionsnummern der aktuell installierten lokalen Version des Mods und der neuesten auf mod.io verfügbaren Version stimmen nicht überein! Klicke es an, um den Mod direkt mit der neuesten Version von mod.io zu aktualisieren. (WARNUNG: Dies setzt voraus, dass Mod-Autoren die Versionsnummern in der modinfo.json - Datei und in der Beschreibung auf mod.io immer genau aufeinander abstimmen – es gibt Mods, die diesen Standard nicht einhalten; bei diesen wird daher immer das „!“ angezeigt, egal was man tut.) — **Klick startet direkt den Update-Download** |
 
 - Mod-Namen werden **rot** für Konflikte und **orange** für fehlende Abhängigkeiten oder Ersetzungen angezeigt.
 - Sub-Mods (Unterordner innerhalb eines Mods) erscheinen eingerückt unter ihrem übergeordneten Mod und können nicht einzeln deinstalliert werden.
@@ -299,6 +299,7 @@ Der Einstellungen-Tab ist scrollbar — nutze das Mausrad oder die Scrollleiste 
   - *Immer aktivieren* — neu installierte Mods werden sofort aktiviert.
   - *Immer deaktivieren* — Mods werden der Liste hinzugefügt, aber deaktiviert gelassen.
   - *Aktuellen Status beibehalten* — war der Mod bereits aktiv (z.B. bei einer Neuinstallation), bleibt er aktiv; andernfalls bleibt er deaktiviert.
+- **Zum Tab „Mod-Aktivierung“ springen** – standardmäßig aktiviert – Wenn diese Option aktiviert ist, springt die App nach der Installation einer Mod/einer Sammlung zum Tab „Mod-Aktivierung“, wobei der neu installierte Mod bzw. die Mod-Sammlung bereits ausgewählt ist. Deaktiviere diese Option, damit nach der Installation über den „Mod-Browser“ oder „Sammlungen“ kein Tab-Wechsel erfolgt.
 
 #### Spieldateien
 

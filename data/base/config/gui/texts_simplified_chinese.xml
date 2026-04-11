@@ -1868,4 +1868,12 @@
     <LineId>1999101477</LineId>
     <Text>该模组已本地安装，但您在 mod.io 上已取消订阅。您将无法收到更新通知。请点击“安装”以重新订阅。</Text>
   </Text>
+  <Text>
+    <LineId>1999101478</LineId>
+    <Text>如果启用，每次从 "模式浏览器 "安装模式后，应用程序都会跳转到 "激活 "选项卡。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101479</LineId>
+    <Text>当前安装的本地 MOD 版本与 mod.io 上的最新版本在版本号上不匹配！点击即可直接用 mod.io 上的最新版本更新 MOD。</Text>
+  </Text>
 </Texts>

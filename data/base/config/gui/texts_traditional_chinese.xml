@@ -1868,4 +1868,12 @@
     <LineId>1999101477</LineId>
     <Text>此模組已在本機安裝，但您已不再於 mod.io 上訂閱該模組。您將不會收到更新通知。請點擊「安裝」以重新訂閱。</Text>
   </Text>
+  <Text>
+    <LineId>1999101478</LineId>
+    <Text>如果啟用，每次從模組瀏覽器安裝模組後，應用程式都會跳到啟動標籤。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101479</LineId>
+    <Text>當前安裝的本地版本 mod 與 mod.io 上的最新版本在版本號上不匹配！點擊直接從 mod.io 更新 mod 的最新版本。</Text>
+  </Text>
 </Texts>

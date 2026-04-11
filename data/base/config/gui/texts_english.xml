@@ -1868,4 +1868,12 @@ Please select the "Documents\Anno 117 - Pax Romana" folder in the next dialog.</
     <LineId>1999101477</LineId>
     <Text>This mod is installed locally but you are no longer subscribed to it on mod.io. You will not receive update notifications. Click Install to re-subscribe.</Text>
   </Text>
+  <Text>
+    <LineId>1999101478</LineId>
+    <Text>If enabled, the app jumps to the Activation tab each time after installing a mod from the Mod Browser</Text>
+  </Text>
+  <Text>
+    <LineId>1999101479</LineId>
+    <Text>There is a mismatch in version numbers between the currently installed local version of the mod and the newest version available on mod.io! Click to directly update the mod with the newest version from mod.io.</Text>
+  </Text>
 </Texts>

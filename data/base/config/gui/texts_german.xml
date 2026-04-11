@@ -1871,6 +1871,14 @@ Bitte wählen Sie im nächsten Dialog den Ordner "Dokumente\Anno 117 - Pax Roman
   </Text>
   <Text>
     <LineId>1999101477</LineId>
-    <Text>Diese Mod ist lokal installiert, aber er ist auf mod.io nicht mehr abonniert. Sie erhälten keine Benachrichtigungen über Updates. Klicken Sie auf „Installieren“, um ihn erneut zu abonnieren.</Text>
+    <Text>Diese Mod ist lokal installiert, aber ist auf mod.io nicht mehr abonniert. Sie erhalten keine Benachrichtigungen über Updates. Klicken Sie auf „Installieren“, um ihn erneut zu abonnieren.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101478</LineId>
+    <Text>Wenn aktiviert, springt die App nach der Installation eines Mods aus dem Mod-Browser jedes Mal auf die Registerkarte "Aktivierung"</Text>
+  </Text>
+  <Text>
+    <LineId>1999101479</LineId>
+    <Text>Es gibt eine Abweichung in der Versionsnummer zwischen der aktuell installierten lokalen Version des Mods und der neuesten Version auf mod.io! Klicken Sie auf das !, um die Mod direkt mit der neuesten Version von mod.io zu aktualisieren.</Text>
   </Text>
 </Texts>
