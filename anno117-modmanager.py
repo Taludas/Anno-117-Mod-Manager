@@ -6794,7 +6794,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 entry.bind("<Return>", make_entry_callback())
 
                 # --- CUSTOM COLOR PICKER INJECTION ---
-                if mod['id'] in ["taludas-customnpccolours", "taludas-customplayercolour"]:
+                if mod['id'] in ["taludas-customnpccolours", "taludas-customplayercolour", "custom-player-colors-ewjax"]:
                     # Create the picker button
                     _ico_cp = load_icon("colorpicker_btn", (24, 24))
                     btn_color = tk.Button(input_frame, text="" if _ico_cp else "🎨", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", image=_ico_cp, compound="center" if _ico_cp else "none")
