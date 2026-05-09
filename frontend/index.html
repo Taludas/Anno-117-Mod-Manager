@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anno 117 Mod Manager</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/parchment.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/loader.css" />
+  <link rel="stylesheet" href="css/tabs/activation.css" />
+  <link rel="stylesheet" href="css/tabs/settings.css" />
+  <link rel="stylesheet" href="css/tabs/log.css" />
+  <link rel="stylesheet" href="css/tabs/install.css" />
+  <link rel="stylesheet" href="css/tabs/tweak.css" />
+  <link rel="stylesheet" href="css/tabs/news.css" />
+  <link rel="stylesheet" href="css/tabs/browser.css" />
+  <!-- Load order matters: app.js must define annoApp() *before* alpine.min.js
+       calls Alpine.start() on DOMContentLoaded, otherwise x-data="annoApp()"
+       resolves to undefined and the whole tree silently fails to render. -->
+  <script defer src="js/app.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body x-data="annoApp()" x-init="init()">
+
+  <header class="title-bar">
+    <h1 class="title-bar__brand">
+      <span class="title-bar__roman">ANNO 117</span>
+      <span class="title-bar__sub">Mod Manager</span>
+    </h1>
+    <span class="title-bar__version"
+          :class="release.checked ? (release.up_to_date ? 'is-up-to-date' : 'is-stale') : ''"
+          :title="release.checked
+                    ? (release.up_to_date
+                        ? 'À jour (v' + version + ')'
+                        : 'Nouvelle version disponible : v' + release.latest + ' (vous avez v' + version + ')')
+                    : ''"
+          @click="release.checked && !release.up_to_date && openExternalUrl(release.url)"
+          x-text="version ? 'v' + version : ''"></span>
+
+    <!-- Community/dev links — Discord, GitHub, Ko-fi. Open in the user's
+         browser via the same router that News uses. -->
+    <div class="title-bar__links">
+      <a class="title-bar__link" title="Discord"
+         @click="openExternalUrl('https://discord.gg/m4e7ZanMVp')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09a.1.1 0 0 0-.07-.03c-1.5.26-2.93.71-4.27 1.33a.08.08 0 0 0-.03.03C2.07 9.46 1.33 13.46 1.7 17.42a.1.1 0 0 0 .04.07c1.81 1.34 3.56 2.15 5.29 2.69a.1.1 0 0 0 .1-.03c.41-.56.77-1.15 1.08-1.77a.1.1 0 0 0-.05-.13c-.58-.22-1.13-.49-1.66-.79a.1.1 0 0 1-.01-.16l.32-.25a.07.07 0 0 1 .07-.01c3.48 1.59 7.25 1.59 10.69 0a.07.07 0 0 1 .07.01l.33.25c.05.04.05.13-.01.16-.53.31-1.08.57-1.66.79a.1.1 0 0 0-.05.13c.32.62.68 1.21 1.08 1.77a.1.1 0 0 0 .1.03c1.74-.54 3.49-1.35 5.3-2.69a.1.1 0 0 0 .04-.07c.44-4.58-.74-8.55-3.13-12.06a.07.07 0 0 0-.04-.03zM8.52 15.01c-1.04 0-1.9-.95-1.9-2.12 0-1.17.84-2.13 1.9-2.13 1.07 0 1.92.96 1.9 2.13 0 1.17-.84 2.12-1.9 2.12zm7.04 0c-1.04 0-1.9-.95-1.9-2.12 0-1.17.84-2.13 1.9-2.13 1.07 0 1.92.96 1.9 2.13 0 1.17-.83 2.12-1.9 2.12z"/>
+        </svg>
+      </a>
+      <a class="title-bar__link" title="GitHub"
+         @click="openExternalUrl('https://github.com/taludas/anno-117-mod-manager')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.18c-3.2.69-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.18a10.95 10.95 0 0 1 5.75 0c2.2-1.49 3.16-1.18 3.16-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.08 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.05.78 2.12v3.14c0 .31.21.68.79.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/>
+        </svg>
+      </a>
+      <a class="title-bar__link title-bar__link--kofi" title="Ko-fi"
+         @click="openExternalUrl('https://ko-fi.com/W7W8L558T')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M3 4h13.5a4.5 4.5 0 0 1 4.5 4.5v.5a4.5 4.5 0 0 1-4 4.47 5 5 0 0 1-4.96 4.03H7a4 4 0 0 1-4-4V4zm14 7a2.5 2.5 0 0 0 2-2.45V8.5A2.5 2.5 0 0 0 16.5 6H17v5zm-9.5-3a1.5 1.5 0 0 0-1.5 1.5c0 .9.62 1.78 1.45 2.6.6.6 1.27 1.07 1.55 1.25.28-.18.95-.65 1.55-1.25.83-.82 1.45-1.7 1.45-2.6A1.5 1.5 0 0 0 11 8c-.6 0-1.16.36-1.5.93A1.74 1.74 0 0 0 7.5 8z"/>
+        </svg>
+      </a>
+    </div>
+
+    <!-- Round flag button + popover for the language picker. -->
+    <div class="lang-picker" @click.outside="langOpen = false">
+      <button class="lang-picker__btn"
+              @click="langOpen = !langOpen"
+              :title="currentLanguage ? currentLanguage.name : t('hud.language')">
+        <!-- Bundled SVG flag (lipis/flag-icons CC-BY) instead of the
+             regional-indicator emoji: Windows' Segoe UI Emoji ships
+             without country flags by design, so emojis render as plain
+             "FR"/"DE" letters on Win10/11. <img> is reliable across all
+             OSes; falls back to a globe glyph while loading. -->
+        <img class="lang-picker__flag"
+             x-show="currentLanguage"
+             :src="currentLanguage ? `icons/flags/${currentLanguage.flag_code}.svg` : ''"
+             :alt="currentLanguage ? currentLanguage.flag_code.toUpperCase() : ''" />
+        <span class="lang-picker__flag" x-show="!currentLanguage">🌐</span>
+      </button>
+      <div class="lang-picker__menu" x-show="langOpen" x-cloak>
+        <template x-for="l in languages" :key="l.key">
+          <button class="lang-picker__item"
+                  :class="{ 'is-active': l.key === currentLang }"
+                  @click="selectLanguage(l.key)">
+            <img class="lang-picker__item-flag"
+                 :src="`icons/flags/${l.flag_code}.svg`"
+                 :alt="l.flag_code.toUpperCase()" />
+            <span class="lang-picker__item-name" x-text="l.name"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <main class="main">
+      <!-- Single dispatcher: each render*() returns the HTML string for the
+           active tab. Sits directly on the .main > div so it inherits
+           flex:1 + overflow:hidden — without that, height:100% inside the
+           tab has no reference and content spills under the HUD bar. -->
+      <div x-html="renderTab(currentTab)"></div>
+    </main>
+
+    <footer class="toolbar">
+      <!-- Single composite HUD pill with two internal rows. The visual seam
+           between the rows is just a thin inset rule so the whole assembly
+           reads as one carved frame, like the in-game build menu. -->
+      <div class="toolbar__hud">
+
+        <!-- Row 1 — main tabs (rounded square buttons) -->
+        <div class="toolbar__hud-row toolbar__hud-row--top">
+          <div class="toolbar__group">
+            <template x-for="tab in tabs.filter(x => x.group === 'mods')" :key="tab.id">
+              <button
+                class="toolbar__tab"
+                :class="{ 'is-active': currentTab === tab.id, 'is-disabled': tab.disabled }"
+                :title="tab.label"
+                @click="selectTab(tab.id, tab.disabled)">
+                <img class="toolbar__icon" :src="tab.img" :alt="tab.label" />
+                <span class="toolbar__tab-label" x-text="tab.label"></span>
+              </button>
+            </template>
+          </div>
+          <div class="toolbar__divider"></div>
+          <div class="toolbar__group">
+            <template x-for="tab in tabs.filter(x => x.group === 'tools')" :key="tab.id">
+              <button
+                class="toolbar__tab"
+                :class="{ 'is-active': currentTab === tab.id, 'is-disabled': tab.disabled }"
+                :title="tab.label"
+                @click="selectTab(tab.id, tab.disabled)">
+                <img class="toolbar__icon" :src="tab.img" :alt="tab.label" />
+                <span class="toolbar__tab-label" x-text="tab.label"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Row 2 — utility buttons + global search. Settings + refresh sit at
+             the bottom-left (mirroring annolayouts' gear/menu placement),
+             search in the middle, launch at the bottom-right. -->
+        <div class="toolbar__hud-row toolbar__hud-row--bottom">
+          <div class="toolbar__group toolbar__group--utility">
+            <div class="toolbar__cup">
+              <button class="toolbar__round"
+                      @click="currentTab = 'settings'"
+                      :title="t('hud.settings')">
+                <img class="toolbar__round-icon" src="icons/settings.png" :alt="t('hud.settings')" />
+              </button>
+            </div>
+            <!-- Refresh: refreshMods() on Activation, browserRefresh() on
+                 Browser/Collections. Stays visible on every tab — just
+                 disabled on the ones where it has nothing to refresh,
+                 so the HUD keeps its shape and weight. -->
+            <div class="toolbar__cup">
+              <button class="toolbar__round"
+                      :disabled="currentTab !== 'activation' && currentTab !== 'browser' && currentTab !== 'collections' && currentTab !== 'news'"
+                      @click="
+                        currentTab === 'browser' || currentTab === 'collections' ? browserRefresh()
+                          : currentTab === 'news' ? refreshNews(true)
+                          : refreshMods()"
+                      :title="
+                        currentTab === 'browser' || currentTab === 'collections' ? t('browser.refresh')
+                          : currentTab === 'news' ? t('news.refresh')
+                          : t('hud.refreshMods')">
+                <img class="toolbar__round-icon" src="icons/refresh.png" alt="" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Search filters the Activation list (live, x-model) and submits a
+               mod.io query on Enter when on Browser or Collections. Stays
+               visible everywhere — disabled where it has nothing to filter. -->
+          <div class="toolbar__search">
+            <svg class="toolbar__search-icon" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4-4" />
+            </svg>
+            <input class="toolbar__search-input"
+                   type="text"
+                   :disabled="currentTab !== 'activation' && currentTab !== 'browser' && currentTab !== 'collections'"
+                   :placeholder="(currentTab === 'browser' || currentTab === 'collections') ? t('browser.searchPlaceholder') : t('hud.searchMod')"
+                   :value="(currentTab === 'browser' || currentTab === 'collections') ? browser.search : search"
+                   @input="(currentTab === 'browser' || currentTab === 'collections') ? null : (search = $event.target.value)"
+                   @keydown.enter="(currentTab === 'browser' || currentTab === 'collections') && (browser.search = $event.target.value, browser.offset = 0, browserFetch())" />
+          </div>
+
+          <div class="toolbar__group toolbar__group--utility">
+            <div class="toolbar__cup">
+              <button class="toolbar__round"
+                      @click="openModsFolder()"
+                      :title="t('mods.openFolder.title')">
+                <img class="toolbar__round-icon" src="icons/folder.png" :alt="t('mods.openFolder.title')" />
+              </button>
+            </div>
+            <div class="toolbar__cup">
+              <button class="toolbar__round toolbar__round--launch"
+                      @click="launchGame()"
+                      :title="t('launch.title')">
+                <img class="toolbar__round-icon" src="icons/launch.png" :alt="t('launch.title')" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </footer>
+
+    <!-- App-styled confirmation dialog. Replaces window.confirm() (which
+         on WebKit2GTK / WebView2 spawns a system-themed popup that
+         clashes with the annolayouts aesthetic). Used by the various
+         "are you sure?" prompts: reset tweak, uninstall mod, delete
+         preset, disconnect mod.io, overwrite on install, etc. -->
+    <div class="confirm-modal"
+         x-show="confirmModal.open"
+         x-cloak
+         @keydown.escape.window="confirmModal.open && _confirmModalAnswer(false)"
+         @click.self="_confirmModalAnswer(false)">
+      <div class="confirm-modal__panel">
+        <p class="confirm-modal__message" x-text="confirmModal.message"></p>
+        <div class="confirm-modal__actions">
+          <button class="confirm-modal__btn"
+                  @click="_confirmModalAnswer(false)"
+                  x-text="t('common.cancel')"></button>
+          <button class="confirm-modal__btn confirm-modal__btn--primary"
+                  @click="_confirmModalAnswer(true)"
+                  x-text="t('common.confirm')"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Link to mod.io" picker for hand-installed mods on the Activation
+         tab. Modal overlay (full screen, scrim) — the user has to confirm
+         a match explicitly before any marker is written. -->
+    <div class="link-picker"
+         x-show="linkPicker.open"
+         x-cloak
+         @keydown.escape.window="closeLinkPicker()"
+         @click.self="closeLinkPicker()">
+      <div class="link-picker__panel">
+        <div class="link-picker__head">
+          <h3 class="link-picker__title"
+              x-text="t('mods.link.title', { name: linkPicker.localName })"></h3>
+          <button class="link-picker__close"
+                  @click="closeLinkPicker()">✕</button>
+        </div>
+        <div class="link-picker__search">
+          <input type="text"
+                 :placeholder="t('mods.link.searchPlaceholder')"
+                 :value="linkPicker.search"
+                 @input.debounce.250ms="linkPicker.search = $event.target.value; linkPickerSearch()" />
+        </div>
+        <div class="link-picker__results">
+          <template x-if="linkPicker.loading">
+            <div class="link-picker__empty" x-text="t('browser.loading')"></div>
+          </template>
+          <template x-if="!linkPicker.loading && linkPicker.error">
+            <div class="link-picker__empty link-picker__empty--error"
+                 x-text="t('browser.error', { error: linkPicker.error })"></div>
+          </template>
+          <template x-if="!linkPicker.loading && !linkPicker.error && !linkPicker.results.length">
+            <div class="link-picker__empty" x-text="t('mods.link.empty')"></div>
+          </template>
+          <template x-for="m in linkPicker.results" :key="m.id">
+            <div class="link-picker__row">
+              <img class="link-picker__logo"
+                   :src="(m.logo && (m.logo.thumb_320x180 || m.logo.original)) || ''"
+                   alt="" loading="lazy" />
+              <div class="link-picker__meta">
+                <div class="link-picker__name" x-text="m.name"></div>
+                <div class="link-picker__author"
+                     x-text="(m.submitted_by && m.submitted_by.username) || '?'"></div>
+              </div>
+              <button class="link-picker__confirm"
+                      :disabled="linkPicker.busyId === m.id"
+                      @click="confirmLinkMod(m.id)"
+                      x-text="t('mods.link.confirm')"></button>
+            </div>
+          </template>
+        </div>
+        <div class="link-picker__foot">
+          <button class="link-picker__cancel"
+                  @click="closeLinkPicker()"
+                  x-text="t('mods.link.cancel')"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom in-app colour picker popover. Lives at root so it can hover
+         over the tweak rows (which are themselves rendered via x-html and
+         would otherwise destroy any picker DOM on every value change).
+         Opened via openColorPicker() from the swatch button in the tweak
+         form, dismissed on outside click or ESC. -->
+    <div class="color-picker"
+         x-show="colorPicker.open"
+         x-cloak
+         @click.outside="closeColorPicker()"
+         @keydown.escape.window="closeColorPicker()"
+         :style="`top:${colorPicker.y}px; left:${colorPicker.x}px;`">
+      <div class="color-picker__title" x-text="t('tweak.colorPicker.title')"></div>
+
+      <div class="color-picker__row">
+        <div class="color-picker__sv"
+             :style="`background-color:${cpHueColor()}`"
+             @mousedown="cpStartDrag('sv', $event)">
+          <div class="color-picker__sv-white"></div>
+          <div class="color-picker__sv-black"></div>
+          <div class="color-picker__sv-cursor"
+               :style="`left:${colorPicker.s*100}%; top:${(1-colorPicker.v)*100}%; background:${cpHex()}`"></div>
+        </div>
+        <div class="color-picker__hue"
+             @mousedown="cpStartDrag('hue', $event)">
+          <div class="color-picker__hue-cursor"
+               :style="`top:${colorPicker.h/360*100}%`"></div>
+        </div>
+      </div>
+
+      <div class="color-picker__compare">
+        <div class="color-picker__compare-cell">
+          <div class="color-picker__compare-label" x-text="t('tweak.colorPicker.before')"></div>
+          <div class="color-picker__compare-swatch"
+               :style="`background:${colorPicker.prevHex}`"></div>
+        </div>
+        <div class="color-picker__compare-cell">
+          <div class="color-picker__compare-label" x-text="t('tweak.colorPicker.after')"></div>
+          <div class="color-picker__compare-swatch"
+               :style="`background:${cpHex()}`"></div>
+        </div>
+      </div>
+
+      <div class="color-picker__inputs">
+        <label class="color-picker__field">
+          <span>HEX</span>
+          <input type="text" :value="cpHex()" @change="cpSetHex($event.target.value)" />
+        </label>
+        <label class="color-picker__field">
+          <span>INT</span>
+          <input type="text" :value="cpInt()" @change="cpSetInt($event.target.value)" />
+        </label>
+      </div>
+
+      <!-- In-game player banner palette: one click previews the colour in
+           the SV/hue state, Apply commits as usual. Selected swatch ringed
+           in gold so the user sees what's currently picked. -->
+      <div class="color-picker__palette">
+        <template x-for="hex in colorPicker.palette" :key="hex">
+          <button type="button"
+                  class="color-picker__swatch"
+                  :class="{ 'is-selected': cpHex().toLowerCase() === hex.toLowerCase() }"
+                  :style="`background:${hex}`"
+                  :title="hex.toUpperCase()"
+                  @click="cpSetHex(hex)"></button>
+        </template>
+      </div>
+
+      <div class="color-picker__actions">
+        <button class="color-picker__btn"
+                @click="closeColorPicker()"
+                x-text="t('tweak.colorPicker.cancel')"></button>
+        <button class="color-picker__btn color-picker__btn--primary"
+                @click="commitColorPicker()"
+                x-text="t('tweak.colorPicker.apply')"></button>
+      </div>
+    </div>
+
+  <!-- Dependency-issue dialog — explains the conflict/missing dep and
+       offers contextual fix buttons (enable dep, disable conflict, etc.) -->
+  <div class="dep-dialog"
+       x-show="depDialog.open"
+       x-cloak
+       @keydown.escape.window="depDialog.open && closeDepDialog()"
+       @click.self="closeDepDialog()">
+    <div class="dep-dialog__panel">
+      <div class="dep-dialog__head">
+        <h3 class="dep-dialog__title"
+            x-text="depDialog.type === 'conflict'          ? t('deps.dialog.conflict',         { mod: depDialog.modName })
+                   : depDialog.type === 'missingInstalled'  ? t('deps.dialog.missingInstalled',  { mod: depDialog.modName })
+                   : depDialog.type === 'missingActive'     ? t('deps.dialog.missingActive',     { mod: depDialog.modName })
+                   :                                          t('deps.dialog.deprecated',         { mod: depDialog.modName })">
+        </h3>
+      </div>
+      <ul class="dep-dialog__list">
+        <template x-for="item in depDialog.items" :key="item.id + item.name">
+          <li class="dep-dialog__item">
+            <span class="dep-dialog__item-name" x-text="item.name || item.id"></span>
+            <div class="dep-dialog__item-actions">
+              <!-- conflict: disable the conflicting mod -->
+              <template x-if="depDialog.type === 'conflict'">
+                <button class="dep-dialog__btn dep-dialog__btn--danger"
+                        @click="depDialogDisable(item.id)"
+                        x-text="t('deps.dialog.disable')"></button>
+              </template>
+              <!-- missingInstalled: install directly from mod.io -->
+              <template x-if="depDialog.type === 'missingInstalled'">
+                <button class="dep-dialog__btn dep-dialog__btn--primary"
+                        :disabled="depDialog.busyId === item.id"
+                        @click="depDialogInstall(item.id)"
+                        x-text="depDialog.busyId === item.id ? t('deps.dialog.installing') : t('deps.dialog.install')">
+                </button>
+              </template>
+              <!-- missingActive: enable the dep -->
+              <template x-if="depDialog.type === 'missingActive'">
+                <button class="dep-dialog__btn dep-dialog__btn--primary"
+                        @click="depDialogEnable(item.id)"
+                        x-text="t('deps.dialog.enable')"></button>
+              </template>
+            </div>
+          </li>
+        </template>
+      </ul>
+      <div class="dep-dialog__error" x-show="depDialog.error" x-text="depDialog.error"></div>
+      <div class="dep-dialog__footer">
+        <!-- deprecated: offer to disable self -->
+        <template x-if="depDialog.type === 'deprecated'">
+          <button class="dep-dialog__btn dep-dialog__btn--danger"
+                  @click="depDialogDisableSelf()"
+                  x-text="t('deps.dialog.disableThis')"></button>
+        </template>
+        <button class="dep-dialog__btn dep-dialog__btn--ghost"
+                @click="closeDepDialog()"
+                x-text="t('deps.dialog.close')"></button>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+</body>
+</html>

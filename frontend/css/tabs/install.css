@@ -1,0 +1,147 @@
+/* Manual Install tab — centered drop zone with click-to-browse + status. */
+
+/* No internal scroll — see settings.css for the rationale. The outer
+   .main > div is the scroll container so re-renders preserve scrollTop. */
+.install {
+  padding: 32px 28px 36px;
+}
+
+.install__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.install__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.install__hint {
+  margin: 0;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-left: 2px solid var(--gold-dim);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #adb4c2;
+}
+
+/* The drop zone — a tall dashed gold-outlined card. Highlights when a file
+   is being dragged over it; subtle pulse while busy uploading/extracting. */
+.install__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  padding: 36px 28px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(148, 178, 236, 0.04), transparent 70%),
+    linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 2px dashed var(--gold-dim);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+  text-align: center;
+  user-select: none;
+}
+.install__drop:hover {
+  border-color: var(--gold);
+}
+.install__drop.is-over {
+  border-color: var(--gold);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(200, 169, 77, 0.12), transparent 60%),
+    linear-gradient(180deg, #2c3340 0%, #232732 100%);
+  transform: scale(1.01);
+}
+.install__drop.is-busy {
+  pointer-events: none;
+  opacity: 0.7;
+  animation: install-pulse 1.4s ease-in-out infinite;
+}
+@keyframes install-pulse {
+  0%, 100% { border-color: var(--gold-dim); }
+  50%      { border-color: var(--gold-light); }
+}
+
+.install__drop-icon {
+  font-size: 48px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.6);
+}
+.install__drop-line {
+  font-family: var(--font-title);
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cream);
+}
+.install__drop-sub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: #6f7689;
+  font-style: italic;
+}
+.install__pick {
+  margin-top: 4px;
+}
+
+/* Status banner that appears under the drop zone after an attempt. */
+.install__status {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.install__status.is-ok {
+  background: rgba(110, 150, 89, 0.18);
+  border: 1px solid #6e9659;
+  color: #d4ffd8;
+}
+.install__status.is-error {
+  background: rgba(192, 57, 43, 0.20);
+  border: 1px solid #c25555;
+  color: #ffd6d6;
+}
+
+.install__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--cream-dim);
+}
+.install__targets > div {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.install__targets span {
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.install__targets code {
+  font-family: monospace;
+  font-size: 11px;
+  color: #c4c6d0;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  word-break: break-all;
+}

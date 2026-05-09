@@ -24,6 +24,12 @@ __pycache__/
 *.manifest
 *.spec
 build/
+dist/
+build-win/
+dist-win/
+
+# Local source assets staged before being copied into frontend/
+chargement/
 
 # PyCharm
 .idea/
@@ -36,4 +42,7 @@ build/
 
 # anno rda reference file -- too large to track
 config.rda/
+
+# Local stash of reference screenshots (not tracked)
+screen/
 

@@ -1,0 +1,95 @@
+/* Wreath + logo loader, used by News and Browser empty/loading states.
+   Two stacked copies of the wreath SVG: a desaturated base + a coloured
+   copy revealed bottom-to-top through a CSS mask, giving a "filling
+   wreath" effect that pairs with a slow breathe scale. The logo sits
+   inside the wreath, static. No spinner rings or shimmer — just the
+   two animations to keep the cost low when shown inline mid-page. */
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 14px;
+}
+.loader__stage {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+.loader__wreath {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: loaderBreathe 3.6s ease-in-out infinite;
+  filter:
+    drop-shadow(0 0 6px rgba(216, 181, 106, 0.22))
+    drop-shadow(0 0 18px rgba(216, 181, 106, 0.10));
+}
+.loader__wreath-base,
+.loader__wreath-light {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.loader__wreath-base {
+  /* Dim grayscale base — visible at the start of the cycle, then "filled
+     in" by the colour copy on top. */
+  filter: grayscale(1) brightness(0.55) contrast(0.9);
+  opacity: 0.55;
+}
+.loader__wreath-light {
+  -webkit-mask-image: linear-gradient(
+    to top,
+    #000 var(--loader-fill, 0%),
+    transparent calc(var(--loader-fill, 0%) + 8%)
+  );
+  mask-image: linear-gradient(
+    to top,
+    #000 var(--loader-fill, 0%),
+    transparent calc(var(--loader-fill, 0%) + 8%)
+  );
+  animation: loaderFill 3.6s ease-in-out infinite;
+  filter:
+    drop-shadow(0 0 6px rgba(241, 216, 150, 0.5))
+    drop-shadow(0 0 16px rgba(241, 216, 150, 0.22));
+}
+.loader__logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60%;
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+.loader__label {
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  text-align: center;
+}
+
+/* @property registers --loader-fill as an animatable percentage. Without
+   it the mask-image transition jumps between keyframes instead of
+   interpolating smoothly. */
+@property --loader-fill {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@keyframes loaderBreathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+@keyframes loaderFill {
+  0%   { --loader-fill: 0%; }
+  50%  { --loader-fill: 100%; }
+  100% { --loader-fill: 0%; }
+}

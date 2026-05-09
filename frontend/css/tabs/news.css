@@ -1,0 +1,365 @@
+/* News tab — toolbar with Refresh + Reddit toggle + Visit Anno Union, then
+   a responsive grid of news cards (Anno Union blog posts + optional Reddit). */
+
+.news {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 18px 22px;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.news__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.news__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #c4c6d0;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 12px;
+  border: 1px solid #3a4150;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.news__toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 2px solid #4a5568;
+  background: #1a1d24;
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+}
+.news__toggle input[type="checkbox"]:checked {
+  background: #2a3a52;
+  border-color: #94b2ec;
+}
+.news__toggle input[type="checkbox"]:checked::after {
+  content: '✔';
+  position: absolute;
+  top: -3px;
+  left: 1px;
+  color: #94b2ec;
+  font-size: 12px;
+}
+
+.news__cached {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--gold-dim);
+  margin-left: auto;
+}
+
+.news__body {
+  flex: 1;
+  min-height: 0;
+  /* overflow-y: scroll (not auto) so the bar's geometry is permanent —
+     keeps card hovers from jiggling the grid. Same fix as Browser. */
+  overflow-y: scroll;
+}
+.news__body::-webkit-scrollbar {
+  width: 12px;
+}
+.news__body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.30);
+}
+.news__body::-webkit-scrollbar-thumb {
+  background: #3a4150;
+  border: 2px solid #1a1d24;
+  border-radius: 6px;
+}
+.news__body::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dim);
+}
+
+.news__empty {
+  padding: 80px 24px;
+  text-align: center;
+  color: #6f7689;
+  font-style: italic;
+}
+.news__empty--error {
+  color: #ff8c8c;
+}
+
+/* Responsive grid: as many 320px-min cards as fit. */
+.news__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.news-card {
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  /* No transform on hover — translating the box was making cards jiggle
+     and the scrollbar geometry recompute on every hover. Same fix as
+     the Browser tab. Just border-color is enough to highlight. */
+  transition: border-color 120ms ease;
+}
+.news-card:hover {
+  border-color: var(--gold);
+}
+
+.news-card__media {
+  width: 100%;
+  height: 160px;
+  background: #14171d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.news-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.news-card__media--placeholder {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(148, 178, 236, 0.10), transparent 60%),
+    linear-gradient(180deg, #2c3340, #1e2128);
+}
+.news-card__media--placeholder span {
+  font-size: 36px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+  opacity: 0.4;
+}
+
+.news-card__body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.news-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-card__badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #fff0e0;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* Aligned on .mod-card__date (Browser) — monospace 11px reads more
+   "metadata" than italic and matches the Browser cards exactly. */
+.news-card__date {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--cream-dim);
+  white-space: nowrap;
+}
+
+/* Aligned on .mod-card__title — body font 15px / weight 600 was the
+   reference picked because the title-font (Playfair SC) read fuzzy at
+   small sizes on WebKit2GTK; body is sharper. */
+.news-card__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--cream);
+  line-height: 1.35;
+}
+
+/* Aligned on .mod-card__summary — same size + line-height + colour so
+   the News and Browser grids feel like a single design language. The
+   excerpt honours the Settings → Reading text size choice (theme.css);
+   the card has a line-clamp so growing the text shortens what's
+   visible without overflowing the card. */
+.news-card__excerpt {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: calc(13px * var(--reading-scale));
+  color: #c4c6d0;
+  line-height: 1.45;
+}
+
+/* ── In-app reader for Anno Union posts ─────────────────────────────────── */
+.news-detail {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 8px 8px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.news-detail__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.news-detail__hero {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #2a2e36;
+  background: #1a1d24;
+}
+.news-detail__hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.news-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Aligned on .browser-detail__title — same size, family and gold
+   colour so the in-app reader feels like the Browser/Collections detail
+   pages it lives next to. */
+.news-detail__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  line-height: 1.25;
+}
+/* Sanitised WordPress content. Body sizing mirrors
+   .browser-detail__desc.rich-text exactly so a side-by-side toggle
+   between News and Browser/Collections feels seamless. */
+.news-detail__article {
+  font-family: var(--font-body);
+  font-size: calc(13px * var(--reading-scale));
+  color: #c4c6d0;
+  line-height: 1.55;
+}
+.news-detail__article img,
+.news-detail__article video,
+.news-detail__article iframe {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+.news-detail__article h1,
+.news-detail__article h2,
+.news-detail__article h3,
+.news-detail__article h4 {
+  font-family: var(--font-title);
+  color: var(--gold);
+  letter-spacing: 0.04em;
+  margin: 16px 0 8px;
+  line-height: 1.3;
+}
+.news-detail__article h1 { font-size: calc(18px * var(--reading-scale)); border-bottom: 1px solid #2a2e36; padding-bottom: 6px; }
+.news-detail__article h2 { font-size: calc(15px * var(--reading-scale)); }
+.news-detail__article h3 { font-size: calc(14px * var(--reading-scale)); }
+.news-detail__article h4 { font-size: calc(13px * var(--reading-scale)); color: var(--gold-dim); }
+.news-detail__article a {
+  color: var(--gold);
+  text-decoration: underline;
+}
+.news-detail__article a:hover { color: var(--gold-light); }
+.news-detail__article p { margin: 0 0 12px; }
+.news-detail__article ul,
+.news-detail__article ol { padding-left: 22px; margin: 0 0 12px; }
+.news-detail__article blockquote {
+  border-left: 3px solid var(--gold-faint);
+  margin: 0 0 12px;
+  padding: 4px 12px;
+  color: #d9dbe5;
+  background: rgba(0, 0, 0, 0.18);
+  font-style: italic;
+}
+
+/* Video stand-in: WebKit2GTK 2.50 corrupts native <video> playback for
+   native WP MP4 uploads, so we render a thumbnail link that opens the
+   video externally. Poster image fills the frame, gold play glyph
+   centred over a darkened scrim so it reads as a clickable affordance. */
+.news-detail__video-link {
+  position: relative;
+  display: block;
+  margin: 8px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  text-decoration: none;
+  background: #1a1d24;
+  cursor: pointer;
+  /* Anno Union's <video> tags don't always carry a `poster`; fall back to
+     a 16:9 frame so the play button sits in a visible card. When a poster
+     is rendered as <img> it expands the link naturally and the aspect
+     ratio is overridden by the image's own dimensions. */
+  aspect-ratio: 16 / 9;
+}
+.news-detail__video-link:has(img) {
+  aspect-ratio: auto;
+}
+.news-detail__video-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;            /* override the generic .news-detail__article img margin */
+  border-radius: 0;
+}
+.news-detail__video-link::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+.news-detail__video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--cream);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+.news-detail__video-link:hover .news-detail__video-play {
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--gold-light);
+}
+

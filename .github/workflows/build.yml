@@ -1,0 +1,104 @@
+name: Build portable binaries
+
+# Triggered manually (workflow_dispatch) or on a release tag push.
+# Both jobs upload a single-file portable binary as a workflow artefact —
+# no installer, no setup, just download and double-click.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows:
+    name: Windows (.exe portable)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        # --onefile + --windowed: portable single .exe with no console
+        # window. --add-data uses ';' on Windows (':' on Linux/macOS).
+        # --splash hides the 1-3s bootloader extraction + WebView2 init
+        # behind a static PNG; pyi_splash.close() in app.py dismisses it
+        # as soon as the webview's DOM is loaded.
+        run: |
+          pyinstaller --onefile --windowed `
+            --add-data "data;data" `
+            --add-data "frontend;frontend" `
+            --add-data "_version.py;." `
+            --icon "app_icon.ico" `
+            --version-file "file_version_info.txt" `
+            --splash "data\splash.png" `
+            --name "Anno 117 Mod Manager" `
+            app.py
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anno-117-Mod-Manager-Windows
+          path: dist/Anno 117 Mod Manager.exe
+          if-no-files-found: error
+
+  linux:
+    name: Linux (portable binary)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system dependencies
+        # pywebview on Linux uses WebKit2GTK + PyGObject; the system gir
+        # bindings have to be present at build time so PyInstaller can
+        # bundle their loaders.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-gi \
+            gir1.2-gtk-3.0 \
+            gir1.2-webkit2-4.0 \
+            libwebkit2gtk-4.0-37 \
+            libgirepository1.0-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # PyGObject from PyPI links against system gir; not in
+          # requirements.txt because Windows doesn't need it.
+          pip install pygobject
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile --windowed \
+            --add-data "data:data" \
+            --add-data "frontend:frontend" \
+            --add-data "_version.py:." \
+            --hidden-import "webview.platforms.gtk" \
+            --collect-submodules "webview" \
+            --collect-submodules "gi" \
+            --name "anno117-modmanager-linux" \
+            app.py
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anno-117-Mod-Manager-Linux
+          path: dist/anno117-modmanager-linux
+          if-no-files-found: error

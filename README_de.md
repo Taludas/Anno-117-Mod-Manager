@@ -1,5 +1,7 @@
 # Anno 117 Mod Manager
 
+> ⚠️ **Diese deutsche README ist veraltet.** Sie beschreibt noch die Tk-basierte Vorgängerversion. Die aktuelle App nutzt pywebview + Alpine.js und unterscheidet sich in Aufbau, Tabs und Einstellungen deutlich. Bitte vorerst die [englische README](README.md) lesen — eine Übersetzung folgt, sobald die UI stabil ist.
+
 ![Anno 117 Mod Manager Logo](data/ui/modmanager_logo.png)
 
 Dieses Projekt steht in keiner Verbindung zu Ubisoft und/oder mod.io und wird von diesen auch nicht unterstützt.
@@ -78,14 +80,31 @@ Eine Desktop-Anwendung zur Verwaltung von Mods für **Anno 117: Pax Romana**. Si
 
 ### Linux / Aus dem Quellcode
 
+**1. Python 3.10+ und die Tcl/Tk-Systembibliothek installieren** (Tkinter ist auf den meisten Distributionen nicht mitgeliefert):
+
+- Arch / Manjaro: `sudo pacman -S tk`
+- Debian / Ubuntu: `sudo apt install python3-tk`
+- Fedora: `sudo dnf install python3-tkinter`
+
+**2. Repository klonen und Python-Abhängigkeiten installieren:**
+
 ```bash
 git clone https://github.com/taludas/anno-117-mod-manager.git
-cd anno117-mod-manager
+cd anno-117-mod-manager
+pip install --user pillow requests beautifulsoup4 tkinterdnd2
+python anno117-modmanager.py
+```
+
+Falls `pip install` mit einer *externally-managed environment*-Meldung (PEP 668) abbricht, entweder `--break-system-packages` ergänzen, die Abhängigkeiten aus dem Distributionspaketmanager installieren (z. B. `python-pillow python-requests python-beautifulsoup4` auf Arch — `tkinterdnd2` muss weiterhin per pip installiert werden) oder ein virtualenv verwenden:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install pillow requests beautifulsoup4 tkinterdnd2
 python anno117-modmanager.py
 ```
 
-Die App speichert ihre Einstellungen und Logs unter `~/.config/Anno 117 Mod Manager/` auf Linux.
+Die App speichert ihre Einstellungen und Logs unter `~/.config/Anno 117 Mod Manager/` auf Linux. Anno 117 selbst läuft über Steam + Proton — der Mod Manager erkennt das Spiel automatisch in `~/.steam/steam/steamapps/common/` und sucht den spielinternen `Documents`-Ordner im Proton-Präfix unter `~/.steam/steam/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/Documents/`.
 
 ---
 

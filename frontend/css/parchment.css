@@ -1,0 +1,136 @@
+/* Parchment surface — procedural texture (no PNG required).
+   Stacks several radial gradients of varying scale to mimic uneven paper grain
+   plus a soft vignette to give depth. Looks closer to annolayouts.de's table
+   background than a flat colour and stays sharp at any zoom. */
+
+.parchment {
+  background-color: var(--parchment);
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(120, 90, 40, 0.10) 0%, transparent 35%),
+    radial-gradient(circle at 88% 76%, rgba(120, 90, 40, 0.10) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(110, 80, 30, 0.06) 0%, transparent 70%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(180, 150, 90, 0.04) 0px,
+      rgba(180, 150, 90, 0.04) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    radial-gradient(ellipse at center, var(--parchment) 60%, var(--parchment-deep) 100%);
+  color: var(--parchment-ink);
+  font-family: var(--font-body);
+}
+
+.parchment--card {
+  background-color: var(--parchment);
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(120, 90, 40, 0.09) 0%, transparent 40%),
+    radial-gradient(circle at 82% 78%, rgba(120, 90, 40, 0.09) 0%, transparent 45%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(180, 150, 90, 0.035) 0px,
+      rgba(180, 150, 90, 0.035) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  border: 1px solid var(--parchment-border);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 230, 0.4),
+    var(--shadow-soft);
+  color: var(--parchment-ink);
+}
+
+/* Gold-stroked frame used around significant parchment cards (right panel,
+   modals). The dual border simulates the inset gold rule visible on the in-game
+   pantheon/codex panels. */
+.parchment--framed {
+  position: relative;
+  padding: 14px;
+  border: 1px solid var(--gold-dim);
+  outline: 1px solid rgba(0, 0, 0, 0.4);
+  outline-offset: 0;
+  box-shadow:
+    inset 0 0 0 2px var(--parchment-deep),
+    var(--shadow-deep);
+}
+
+/* Decorative ornament — a flourish-style horizontal divider used to break
+   parchment sections. Renders as a thin gold line with a centred diamond. */
+.ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--gold-dim);
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  margin: 12px 0;
+}
+.ornament::before,
+.ornament::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-dim), transparent);
+}
+
+/* Circular gold-rimmed medallion used for mod / category icons in lists.
+   Mirrors the game's good/portrait roundel motif. */
+.medallion {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, var(--parchment), var(--parchment-deep));
+  border: 2px solid var(--gold);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 250, 230, 0.6),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--parchment-ink);
+  font-family: var(--font-title);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.medallion--lg {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+}
+
+/* Gold pill — used for status counters / quantities (e.g. "12", "AME") to the
+   right of a row, matching the in-game cost-tag style. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  background: linear-gradient(to bottom, var(--gold-light), var(--gold-dim));
+  color: #2a1c08;
+  font-family: var(--font-title);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--gold-dim);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 230, 0.55),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.pill--red {
+  background: linear-gradient(to bottom, var(--red-hover), var(--red-deep));
+  color: var(--cream);
+  border-color: var(--red-deep);
+}
+
+.pill--ghost {
+  background: transparent;
+  color: var(--parchment-ink-dim);
+  border: 1px solid var(--parchment-border);
+  box-shadow: none;
+}

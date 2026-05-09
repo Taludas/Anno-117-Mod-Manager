@@ -1,0 +1,122 @@
+/* Anno 117 Mod Manager — palette & typography tokens.
+   Two registers coexist: dark navy "command HQ" for chrome (sidebar, header,
+   bottom CTA) and parchment for the content area, mirroring the in-game split
+   between main-menu UI (navy panels) and codex/inventory UI (parchment cards). */
+
+@font-face {
+  font-family: 'PlayfairSC';
+  src: url('../fonts/PlayfairDisplaySC-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Marcellus';
+  src: url('../fonts/Marcellus-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  /* Reading-text scale — multiplied into font-size of long-prose
+     containers (news reader, mod descriptions). UI controls (HUD, cards,
+     toolbar) keep fixed sizes so the layout grid stays stable; only the
+     scrolling-text zones grow. Toggled by a body class set in setSetting
+     ('text_scale'). Default = 1 = "small". */
+  --reading-scale: 1;
+
+  /* Navy "command" palette */
+  --navy-darkest: #0a1626;
+  --navy-dark: #0e1b2e;
+  --navy-mid: #1a2940;
+  --navy-hover: #243a55;
+  --navy-line: #2c3f5c;
+
+  /* Antique gold (matches game UI, not the CSS yellow #f1c40f) */
+  --gold: #c8a94d;
+  --gold-light: #e2c46a;
+  --gold-dim: #a08436;
+  --gold-faint: rgba(200, 169, 77, 0.35);
+
+  /* Imperial red — used for active state, primary actions, danger */
+  --red: #a82c1a;
+  --red-hover: #c0392b;
+  --red-deep: #7d1f10;
+
+  /* Cream text on dark backgrounds */
+  --cream: #ece4d0;
+  --cream-dim: #b6ad96;
+
+  /* Parchment surface */
+  --parchment: #ecdfc4;
+  --parchment-alt: #e3d2b0;
+  --parchment-deep: #d4c194;
+  --parchment-border: #b8a378;
+  --parchment-ink: #3a2c14;
+  --parchment-ink-dim: #6b5836;
+
+  /* Shadows */
+  --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-deep: 0 4px 14px rgba(0, 0, 0, 0.55);
+
+  /* Type */
+  --font-title: 'PlayfairSC', 'Playfair Display SC', serif;
+  --font-body: 'Marcellus', Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--navy-darkest);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+button:disabled,
+button.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold-dim);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+/* Reading text size classes set on <body> by applyTextScale(). The
+   variable cascades into the prose containers that opt in (news reader,
+   mod descriptions). Heading sizes inside those containers are also
+   scaled because their font-size rules use calc(... * var(--reading-scale)). */
+body.text-scale-small  { --reading-scale: 1; }
+body.text-scale-medium { --reading-scale: 1.25; }
+body.text-scale-large  { --reading-scale: 1.5; }

@@ -1,0 +1,668 @@
+/* Three-zone layout: top title bar, full-width content, bottom HUD pill.
+   The bottom toolbar mirrors the in-game build menu: a single gold-rimmed
+   rounded pill sitting on a darker backdrop, containing the icon buttons. */
+
+.title-bar {
+  height: 44px;
+  background: linear-gradient(to bottom, var(--navy-dark), var(--navy-darkest));
+  border-bottom: 1px solid var(--gold-dim);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  position: relative;
+  z-index: 10;
+}
+
+.title-bar__brand {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: normal;
+}
+.title-bar__roman {
+  font-family: var(--font-title);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.title-bar__sub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--cream-dim);
+  letter-spacing: 0.05em;
+}
+.title-bar__version {
+  margin-left: auto;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--cream-dim);
+  padding: 2px 8px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 10px;
+  cursor: default;
+}
+/* Up-to-date version: green pill — purely informational. */
+.title-bar__version.is-up-to-date {
+  color: #d4ffd8;
+  border-color: #6e9659;
+  background: rgba(110, 150, 89, 0.18);
+}
+/* Stale version: red pill, clickable, leads to the GitHub release page. */
+.title-bar__version.is-stale {
+  color: #ffd6d6;
+  border-color: #c25555;
+  background: rgba(192, 57, 43, 0.20);
+  cursor: pointer;
+}
+.title-bar__version.is-stale:hover {
+  filter: brightness(1.15);
+}
+
+/* Discord / GitHub / Ko-fi quick-links sit between the version pill and
+   the language picker. Match the rest of the title bar's gold-on-dark
+   vocabulary (round dark disc, gold icon, hover lift). */
+.title-bar__links {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+.title-bar__link {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-dim);
+  background: linear-gradient(to bottom, #2a3c56 0%, #14223a 100%);
+  color: var(--gold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: filter 100ms ease, transform 100ms ease;
+  text-decoration: none;
+}
+.title-bar__link:hover {
+  filter: brightness(1.20);
+  color: var(--gold-light);
+}
+.title-bar__link svg {
+  display: block;
+}
+
+/* Language picker — round flag button in the top-right of the title bar
+   plus a popover showing every supported language. The popover anchors
+   relative to .lang-picker (position:relative). */
+.lang-picker {
+  position: relative;
+  margin-left: 12px;
+}
+.lang-picker__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-dim);
+  background: linear-gradient(to bottom, #2a3c56 0%, #14223a 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: filter 80ms ease;
+  padding: 0;
+}
+.lang-picker__btn:hover {
+  filter: brightness(1.2);
+}
+.lang-picker__flag {
+  /* Bundled SVG (lipis/flag-icons) — Windows ships Segoe UI Emoji
+     without country flags by design, so we don't rely on emoji at all.
+     The fallback span (🌐, no language picked yet) inherits this rule
+     too; for that path we force a Unicode-text font chain. */
+  width: 22px;
+  height: 16px;
+  display: inline-block;
+  object-fit: cover;
+  border-radius: 2px;
+  vertical-align: middle;
+  /* When this rule applies to the fallback <span>🌐</span>, switch to
+     the emoji font chain so the globe glyph still renders nicely. */
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+               "Twemoji Mozilla", emoji, sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+[x-cloak] { display: none !important; }
+
+/* Confirmation modal — drop-in replacement for window.confirm() that
+   matches the rest of the app instead of the OS-native dialog. Same
+   layered look as the link-picker / colour-picker modals: navy-gradient
+   panel with gold-faint border + carved drop shadow over a darkened
+   scrim. */
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--font-body);
+  color: var(--cream);
+}
+.confirm-modal__panel {
+  width: min(440px, 92vw);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: linear-gradient(180deg, #2c3850 0%, #1f2734 100%);
+  border: 1px solid var(--gold-faint);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.08),
+    inset 0 0 1px 0 rgba(200, 169, 77, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.7);
+}
+.confirm-modal__message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cream);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.confirm-modal__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.confirm-modal__btn {
+  padding: 7px 18px;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: inset 0 0 1px 0 rgba(148, 178, 236, 0.4);
+}
+.confirm-modal__btn:hover { filter: brightness(1.15); }
+.confirm-modal__btn--primary {
+  /* Burgundy primary CTA — matches the active-tab palette. */
+  background: linear-gradient(to bottom, #a05779 0%, #501f36 70%);
+  font-weight: bold;
+}
+
+.lang-picker__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #181c26;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.6);
+  padding: 4px;
+  z-index: 100;
+}
+.lang-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: #d0d5dd;
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+.lang-picker__item:hover {
+  background: rgba(100, 130, 170, 0.18);
+}
+.lang-picker__item.is-active {
+  background: rgba(160, 87, 121, 0.25);
+  color: #f8eee6;
+}
+.lang-picker__item-flag {
+  /* Bundled SVG flag — see .lang-picker__flag for rationale. */
+  width: 22px;
+  height: 16px;
+  display: inline-block;
+  object-fit: cover;
+  border-radius: 2px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.lang-picker__item-name {
+  flex: 1;
+}
+
+.layout {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  height: calc(100% - 44px);
+}
+
+/* ── Main content (full width) ───────────────────────────────────────────── */
+
+.main {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--navy-darkest);
+}
+
+/* Scrollable on the outer stable container (the div with x-html) so
+   scrollTop is preserved by the browser when Alpine replaces innerHTML
+   on a state change. Tabs with their own internal scroll containers
+   (.activation, .news, .log-view, .tweak) keep height:100% + overflow:hidden
+   so they fit this viewport and use their internal scroll instead. */
+.main > div {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.placeholder__inner {
+  text-align: center;
+  color: var(--cream-dim);
+  font-family: var(--font-body);
+  font-size: 15px;
+  max-width: 480px;
+}
+.placeholder__inner .ornament {
+  margin-bottom: 16px;
+}
+.placeholder__hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--cream-dim);
+  font-style: italic;
+}
+
+/* ── Bottom HUD ──────────────────────────────────────────────────────────── */
+
+/* Outer dark backdrop the pill floats on. Slightly deeper than the main bg
+   so the pill's gold rim and bevel actually pop. */
+.toolbar {
+  background:
+    linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.35) 35%),
+    var(--navy-darkest);
+  border-top: 1px solid #1a2940;
+  /* No bottom padding — the HUD pill (and its cups) sits flush against the
+     bottom of the viewport, like the in-game build menu. */
+  padding: 12px 18px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 10;
+  /* Isolate layout (so card hovers in .main don't trigger a relayout of
+     the toolbar) but NOT paint — `contain: paint` clips child overflow
+     and was eating the box-shadows of the round buttons whenever the
+     row above repainted. The compositing layers are pushed down to the
+     two HUD rows below so each row has its own GPU layer and doesn't
+     re-paint its sibling on hover. */
+  contain: layout;
+}
+
+/* The composite HUD pill — single dark teal frame containing both internal
+   rows. Inset highlights + drop shadow give the carved metal look; the
+   border is a 1px dark outline plus a faint inset gold lining (not a stark
+   gold edge). The bottom of the pill is darkened to mimic the heavier rim
+   visible under the buttons in the in-game HUD. */
+.toolbar__hud {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  /* Stable pill width — without this the pill hugs whichever row is widest,
+     so the active-tab cartouche expanding/contracting in the top row was
+     visibly shifting the utility row's settings/refresh/folder/launch
+     buttons (which are laid out with justify-content: space-between).
+     640px comfortably hosts the top row even when the active tab hits its
+     200px max-width, so the bottom row never reflows. */
+  min-width: 640px;
+  /* Pill background = annolayouts' rgb(38,47,64) with a subtle vertical
+     gradient for depth. */
+  background: linear-gradient(to bottom, #2c3850 0%, #262f40 60%, #1f2734 100%);
+  border: 1px solid #181c26;
+  border-bottom: none;
+  /* Top corners rounded, bottom flat so the pill snaps to the toolbar
+     (and viewport) bottom edge — matches annolayouts' HUD silhouette. */
+  border-radius: 40px 40px 0 0;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.25),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.3),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.35),
+    0 -2px 8px rgba(0, 0, 0, 0.45);
+  overflow: visible;
+  position: relative;
+}
+
+/* Internal rows — share the pill's frame, separated by a single inset rule
+   that reads as a carved seam between the build-menu tier and the utility
+   tier (mirrors the in-game HUD's two-row construction). */
+.toolbar__hud-row {
+  display: flex;
+  align-items: center;
+  /* Used to force a GPU layer here (translateZ + will-change) to keep the
+     round buttons' shadows from being knocked out on hover repaint, but
+     that broke sub-pixel anti-aliasing on every text in the app on
+     WebKit2GTK 2.50 (in-game HUD font ended up looking blurry).
+     `isolation: isolate` gives us a fresh stacking context for the row
+     without forcing the layer onto the GPU, which is enough now that the
+     pill has a stable min-width and the bottom row doesn't reflow when
+     the active tab grows. */
+  isolation: isolate;
+}
+
+.toolbar__hud-row--top {
+  height: 76px;
+  padding: 8px 22px;
+  gap: 6px;
+  justify-content: center;
+  /* dark inset rule on the bottom + 1px highlight under it → carved seam */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Bottom row — cups dock at the bottom edge of the row so their flat-bottom
+   sides sit flush with the HUD bottom (which is itself flush with the
+   viewport bottom). Search bar self-aligns to centre to stay readable. */
+.toolbar__hud-row--bottom {
+  height: 54px;
+  padding: 6px 14px 0;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.toolbar__hud-row--bottom .toolbar__search {
+  align-self: center;
+}
+
+.toolbar__group--utility {
+  /* Adjacent cups touch edge-to-edge so their flat sides merge into one
+     continuous dark block, with the rounded tops creating a wavy scallop
+     profile (dome / valley / dome). Mirrors annolayouts' merged button
+     wrapper. */
+  gap: 0;
+  /* Drop shadow on the WHOLE merged group rather than per-cup so the seams
+     don't show. */
+  filter:
+    drop-shadow(0 0 4px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 8px rgba(0, 0, 0, 0.35));
+}
+
+.toolbar__bottom-spacer {
+  flex: 1;
+}
+
+/* Search wrapper — squared-off rectangle (no border-radius), background the
+   same colour as the pill so it reads as a recessed slot, with a hard 2px
+   black border + signature pale-blue inset highlight matching the disc
+   buttons. Mirrors annolayouts' search pattern exactly. */
+.toolbar__search {
+  flex: 1;
+  max-width: 260px;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  margin: 0 24px;
+  background: #262f40;
+  border: 2px solid #000;
+  /* deliberately no border-radius — square corners */
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  color: #adadad;
+}
+.toolbar__search-icon {
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  color: #adadad;
+  flex-shrink: 0;
+}
+.toolbar__search-input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #c8c8c8;
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  padding: 0;
+  min-width: 0;
+}
+.toolbar__search-input::placeholder {
+  color: #adadad;
+  font-style: italic;
+}
+/* Disabled state — kept visible (the user wanted the bar to stay put on
+   every tab) but visibly inert: dim text, dim icon, no-drop cursor on
+   the whole pill, no caret. */
+.toolbar__search:has(.toolbar__search-input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.toolbar__search-input:disabled {
+  cursor: not-allowed;
+  color: #6f7689;
+}
+
+.toolbar__group {
+  display: flex;
+  gap: 4px;
+}
+
+/* Subtle vertical rule between toolbar groups — short and faint, matching
+   the inset trough look of the pill rather than a stark gold bar. */
+.toolbar__divider {
+  width: 1px;
+  height: 38px;
+  margin: 0 6px;
+  background: linear-gradient(to bottom, transparent 8%, rgba(0, 0, 0, 0.55) 50%, transparent 92%);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Tab button inside the pill — annolayouts' tile palette (#323e53→#49566a). */
+.toolbar__tab {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  border: 1px solid #181c26;
+  border-radius: 7px;
+  color: var(--cream);
+  box-shadow:
+    inset 0 0 2px 0 #94b2ec,
+    inset 0 -1px 2px rgba(0, 0, 0, 0.35);
+  transition: filter 80ms ease, background 80ms ease;
+  position: relative;
+}
+.toolbar__tab:not(:disabled):hover {
+  filter: brightness(1.15);
+}
+.toolbar__tab.is-active {
+  /* Active tab rises above the pill AND stretches sideways to host its
+     label below the icon — the tile becomes a small cartouche. width:auto
+     with min-width keeps short labels (Log, News) from collapsing into
+     squares while letting longer ones (Aktivierung, Przeglądarka modów)
+     breathe. Burgundy palette matching annolayouts' selected entry. */
+  width: auto;
+  min-width: 64px;
+  max-width: 200px;
+  height: 68px;
+  padding: 6px 14px 7px;
+  margin-top: -8px;
+  margin-bottom: -2px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  background: radial-gradient(circle, #a05779 0%, #501f36 70%);
+  border-radius: 9px;
+  box-shadow:
+    inset 0 0 2px 0 #94b2ec,
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.55);
+  z-index: 2;
+}
+.toolbar__tab.is-active .toolbar__icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* Label hidden on inactive tabs (icon-only). Inside the active tab it sits
+   beneath the icon as a cream small-caps caption with a thin gold rule
+   above it — small carved cartouche feel, matches annolayouts' insignia
+   typography rather than a flat sans-serif label. */
+.toolbar__tab-label {
+  display: none;
+}
+.toolbar__tab.is-active .toolbar__tab-label {
+  display: block;
+  max-width: 100%;
+  padding-top: 2px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  /* Thin gold rule between icon and label — reads as the engraved bar on a
+     Roman cartouche separating a glyph from its name. */
+  border-top: 1px solid var(--gold-faint);
+}
+
+/* Circular button — used in the bottom pill for utility actions (refresh,
+   launch). The asymmetric box-shadow ring extends mostly downward and to the
+   sides (offset-y > spread), drawing the dark "wave" silhouette below the
+   pill that the in-game HUD produces under each utility button.
+   Box-shadow avoids the pseudo-element z-index trap where ::before would
+   render behind the pill's background. */
+/* Dark "cup" wrapper around each round button — top corners are fully
+   rounded (forming an arch above the button), bottom stays square so it
+   merges with the rim of the pill. Asymmetric padding (lots above the
+   button, tight below) makes the arch shape unmistakable and matches the
+   in-game HUD silhouette where the dark niche dominates the top of each
+   utility button. */
+/* Cup wrapper — matches annolayouts' style-2056 geometry: uniform 10px
+   padding, dome top via 50% top corner radii, dark fill #191d26. The
+   negative margin-top pulls the dome UP into the row above so the arch
+   reaches well above the cup's natural row position. The cup docks against
+   the bottom edge of the row (parent uses align-items: flex-end). */
+.toolbar__cup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #191d26;
+  border-top-left-radius: 50%;
+  border-top-right-radius: 50%;
+  margin-top: -20px;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 2;
+  /* Force a dedicated compositing layer ONLY for the cups so the round
+     buttons' shadows survive a hover repaint elsewhere on the toolbar
+     (the row used to carry this trick but it bled the GPU layer onto
+     every label and broke text sub-pixel rendering). Surgical here =
+     shadows preserved + text in the row stays sharp. */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Subsequent cups slide left over the previous one (same -12px overlap as
+   annolayouts' style-2059) so the dark backgrounds merge into one
+   continuous block with a wavy top profile. */
+.toolbar__cup + .toolbar__cup {
+  margin-left: -12px;
+}
+
+.toolbar__round {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #181c26;
+  border-radius: 50%;
+  /* Stacked: glossy top highlight (semi-transparent white fading down) on
+     top of the radial teal — gives the disc the 3D dome look the in-game
+     buttons have. */
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%);
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  transition: filter 80ms ease, background 80ms ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toolbar__round:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.toolbar__round:disabled {
+  opacity: 0.40;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+/* Launch variant — exact same geometry, border, inset highlight and hover
+   behaviour as the regular round buttons (cf. annolayouts' shared button
+   styling). Only the radial fill swaps to burgundy to mark the CTA. */
+.toolbar__round--launch {
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #a05779 0%, #501f36 70%);
+}
+.toolbar__round-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+}
+
+.toolbar__icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  /* Icons ship as white-on-transparent PNGs already; the soft drop shadow
+     gives them the same depth the in-game HUD glyphs have. */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+.toolbar__tab.is-active .toolbar__icon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 4px rgba(255, 220, 200, 0.4));
+}
+

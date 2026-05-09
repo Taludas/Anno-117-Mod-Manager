@@ -428,7 +428,23 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         """Initialises the main application window, sets up all state variables, loads settings and metadata, builds the UI and schedules the language-picker / first-run sequence."""
         super().__init__()
         self.title("Anno 117 Mod Manager" + f' v{_version.__VERSION__}')
-        self.iconbitmap(resource_path("data/ui/anno117_mod_manager.ico"))
+        try:
+            if IS_WINDOWS:
+                self.iconbitmap(resource_path("data/ui/anno117_mod_manager.ico"))
+            else:
+                # Tk on Linux/macOS only accepts XBM via iconbitmap; use iconphoto with the PNG asset
+                _icon_img = tk.PhotoImage(file=resource_path("data/ui/anno117_mod_manager.png"))
+                self.iconphoto(True, _icon_img)
+                self._app_icon_img = _icon_img  # keep a reference so it isn't garbage-collected
+        except Exception as e:
+            print(f"[icon] Could not set window icon: {e}")
+        if IS_LINUX:
+            # Tk on X11 emits Button-4/Button-5 for the mouse wheel instead of <MouseWheel>.
+            # Re-emit a synthetic MouseWheel event on the widget under the cursor so every
+            # existing <MouseWheel> binding (canvases, scrollable lists, etc.) keeps working
+            # without having to add Linux-specific bindings at each call site.
+            self.bind_all("<Button-4>", lambda e: e.widget.event_generate("<MouseWheel>", delta=120))
+            self.bind_all("<Button-5>", lambda e: e.widget.event_generate("<MouseWheel>", delta=-120))
         self.geometry("1440x900")
         self.configure(bg=BG_MAIN)
 
@@ -503,9 +519,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def get_drive_letters(self):
         """Returns a list of all logical drive letters (Windows) or mount points (Linux). On Windows queries the kernel bitmask; on Linux returns common mount roots."""
         if not IS_WINDOWS:
-            # On Linux the game would be installed via Steam under /home or /mnt
-            candidates = ['/']
-            for entry in ['/home', '/mnt', '/media', '/run/media']:
+            # On Linux the game lives under Steam/Proton, /home, or external mounts.
+            # We deliberately do NOT include '/' here — globbing the root traverses /proc and /sys
+            # symlinks (e.g. /proc/<pid>/cwd) which produce phantom paths like //proc/123/cwd/...
+            # that KIO/xdg-open then mis-parse as smb:// URLs.
+            candidates = []
+            for entry in ['/home', '/mnt', '/media', '/run/media', '/opt']:
                 if os.path.isdir(entry):
                     try:
                         for sub in os.scandir(entry):
@@ -546,13 +565,27 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             possible_roots.append(os.path.join(program_files, "Ubisoft", "Ubisoft Game Launcher", "games", "Anno 117 - Pax Romana", "Anno 117"))
             possible_roots.append(os.path.join(program_files, "Steam", "steamapps", "common", "Anno 117 - Pax Romana", "Anno 117"))
         else:
-            # Linux: Steam typical install locations
+            # Linux: Steam typical install locations + Proton compatdata for the Ubisoft launcher prefix
             home = os.path.expanduser('~')
-            possible_roots += [
-                os.path.join(home, '.steam', 'steam', 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'),
-                os.path.join(home, '.local', 'share', 'Steam', 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'),
-                '/usr/share/steam/steamapps/common/Anno 117 - Pax Romana/Anno 117',
+            steam_roots = [
+                os.path.join(home, '.steam', 'steam'),
+                os.path.join(home, '.local', 'share', 'Steam'),
+                '/usr/share/steam',
             ]
+            for sr in steam_roots:
+                possible_roots.append(os.path.join(sr, 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'))
+                # Proton: game installed inside the Ubisoft Game Launcher prefix
+                compat = os.path.join(sr, 'steamapps', 'compatdata')
+                if os.path.isdir(compat):
+                    try:
+                        for appid in os.listdir(compat):
+                            ubi = os.path.join(compat, appid, 'pfx', 'drive_c',
+                                               'Program Files (x86)', 'Ubisoft',
+                                               'Ubisoft Game Launcher', 'games',
+                                               'Anno 117 - Pax Romana')
+                            possible_roots.append(ubi)
+                    except OSError:
+                        pass
 
         drives = self.get_drive_letters()
 
@@ -568,12 +601,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         ]
 
         for drive in drives:
+            # On Windows "C:" needs a trailing sep to mean "root of C:". On Linux drives are
+            # already absolute paths; appending os.sep would produce '//' which KIO mis-parses as smb://
+            drive_root = (drive + os.sep) if (IS_WINDOWS and not drive.endswith(os.sep)) else drive
             for pattern in exe_patterns:
-                full_pattern = os.path.join(drive + os.sep, pattern)
+                full_pattern = os.path.join(drive_root, pattern)
                 try:
                     for match in glob.glob(full_pattern):
                         if os.path.isfile(match):
-                            return os.path.abspath(match)
+                            return os.path.realpath(match)
                 except Exception:
                     continue
 
@@ -587,7 +623,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 os.path.join(root, "Anno117.exe"),
             ]:
                 if os.path.exists(target):
-                    return os.path.abspath(target)
+                    return os.path.realpath(target)
 
         return None
 
@@ -1685,8 +1721,45 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         self.update_idletasks()
 
+    def _spawn_game(self):
+        """Platform-aware launch. On Windows, exec the .exe directly. On Linux, prefer the
+        Steam URI when the game lives inside a Steam-managed Proton prefix (compatdata/<appid>/),
+        so Steam sets up Proton and chains the launcher properly — execing the .exe directly
+        would just hand a Windows binary to the kernel."""
+        if IS_WINDOWS:
+            subprocess.Popen([self.game_exe_path], creationflags=subprocess.CREATE_NO_WINDOW)
+            return
+        if IS_LINUX:
+            # Match the standard layout: ".../steamapps/compatdata/<appid>/pfx/..."
+            m = re.search(r'/steamapps/compatdata/(\d+)/pfx/', self.game_exe_path)
+            if m:
+                appid = m.group(1)
+                # Real Steam apps publish an appmanifest_<appid>.acf and accept the bare 32-bit
+                # appid in rungameid. Non-Steam shortcuts (e.g. user-added Ubisoft Connect)
+                # have no manifest and need the full 64-bit GameID: (shortcut_appid << 32) | 0x02000000.
+                # Passing the bare appid for a shortcut returns "Unknown GameID type" in Steam logs.
+                steam_root = self._steam_root_for_path(self.game_exe_path)
+                manifest = os.path.join(steam_root, 'steamapps', f'appmanifest_{appid}.acf') if steam_root else ''
+                if manifest and os.path.exists(manifest):
+                    target = appid
+                else:
+                    target = str((int(appid) << 32) | 0x02000000)
+                subprocess.Popen(['xdg-open', f'steam://rungameid/{target}'])
+                return
+        # Non-Steam install (Lutris/Heroic/Bottles/raw Wine): hand the path off and let
+        # whatever launcher is registered for .exe handle it.
+        subprocess.Popen([self.game_exe_path])
+
+    @staticmethod
+    def _steam_root_for_path(path):
+        """Returns the Steam library root containing the given path (the directory holding
+        steamapps/), or '' if the path isn't inside a recognisable Steam layout."""
+        marker = '/steamapps/'
+        idx = path.find(marker)
+        return path[:idx] if idx != -1 else ''
+
     def launch_game(self):
-        """Checks for a valid game executable and missing required mod dependencies, then launches Anno117.exe via subprocess. Schedules a UI refresh after launch."""
+        """Checks for a valid game executable and missing required mod dependencies, then launches the game. Schedules a UI refresh after launch."""
         if not self.game_exe_path or not os.path.exists(self.game_exe_path):
             self._imperial_alert(T(1999101189), T(1999101232), is_error=True)
             return
@@ -1708,14 +1781,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.render_activation_tab()
                 # Dependencies are now active - proceed with launch
                 try:
-                    subprocess.Popen([self.game_exe_path], creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0)
+                    self._spawn_game()
                     self.after(2000, self.refresh_ui_after_launch)
                 except Exception as e:
                     self._imperial_alert(T(1999101207), T(1999101394, e), is_error=True)
                 return
 
         try:
-            subprocess.Popen([self.game_exe_path], creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0)
+            self._spawn_game()
             self.after(2000, self.refresh_ui_after_launch)
         except Exception as e:
             self._imperial_alert(T(1999101207), T(1999101394, e), is_error=True)
@@ -3923,8 +3996,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         for candidate in candidates:
             candidate = os.path.normpath(candidate)
             if os.path.exists(candidate):
-                self.game_exe_path = candidate
-                pax_romana_dir = os.path.dirname(os.path.dirname(os.path.dirname(candidate)))
+                # Resolve symlinks (notably /proc/<pid>/cwd on Linux) so we never store a
+                # path that depends on a running process or has a // prefix that breaks KIO.
+                self.game_exe_path = os.path.realpath(candidate)
+                pax_romana_dir = os.path.dirname(os.path.dirname(os.path.dirname(self.game_exe_path)))
                 if hasattr(self, 'game_path_var'):
                     self.game_path_var.set(os.path.normpath(pax_romana_dir))
                 self.save_settings()
@@ -4066,6 +4141,26 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                     # Now extract the variables using self.settings instead of a local 'config'
                     self.game_exe_path = self.settings.get("game_path", "")
+                    # Sanitise paths corrupted by an earlier version that globbed through /proc.
+                    # A leading '//' or an embedded /proc/<pid>/cwd component breaks KIO/xdg-open
+                    # (it gets parsed as smb://). Strip the leading '//', then resolve symlinks.
+                    # If realpath still lands inside /proc (the original process is gone), drop
+                    # the path so the next launch re-discovers it cleanly.
+                    if self.game_exe_path and ('//' in self.game_exe_path or '/proc/' in self.game_exe_path):
+                        try:
+                            cleaned = self.game_exe_path
+                            while cleaned.startswith('//'):
+                                cleaned = cleaned[1:]
+                            resolved = os.path.realpath(cleaned)
+                            if os.path.exists(resolved) and '/proc/' not in resolved:
+                                self.game_exe_path = resolved
+                                self.settings["game_path"] = resolved
+                            else:
+                                self.game_exe_path = ""
+                                self.settings["game_path"] = ""
+                        except Exception:
+                            self.game_exe_path = ""
+                            self.settings["game_path"] = ""
                     self.modio_terms_agreed = self.settings.get("modio_terms_agreed", False)
                     self.modio_token_expires = self.settings.get("modio_token_expires", 0)
                     mode = self.settings.get("mod_location_mode", "Documents")

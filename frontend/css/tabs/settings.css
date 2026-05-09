@@ -1,0 +1,373 @@
+/* Settings tab — stacked dark cards on the navy main bg, same vocabulary as
+   the Activation table (gradient #252a33→#1e2128, gold caption titles, blue
+   inset highlight). */
+
+/* No internal scroll: the outer .main > div is the scroll container so that
+   Alpine's x-html re-render (which replaces this element) doesn't reset
+   scrollTop. Just let content grow naturally. */
+.settings {
+  padding: 24px 28px 36px;
+}
+
+.settings__inner {
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings__card {
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+/* Brief gold halo when redirected from a gated tab (e.g. Browser without
+   a valid mod.io token) so the user sees exactly which section to act on. */
+.settings__card.is-flash {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 0 0 2px rgba(200, 169, 77, 0.45),
+    0 6px 22px rgba(200, 169, 77, 0.20);
+  animation: settings-card-flash 1.6s ease-out;
+}
+@keyframes settings-card-flash {
+  0%   { box-shadow: inset 0 1px 0 rgba(148, 178, 236, 0.06), 0 0 0 4px rgba(200, 169, 77, 0.55), 0 8px 28px rgba(200, 169, 77, 0.30); }
+  100% { box-shadow: inset 0 1px 0 rgba(148, 178, 236, 0.06), 0 0 0 0 rgba(200, 169, 77, 0.0),   0 4px 14px rgba(0, 0, 0, 0.25); }
+}
+
+.settings__hint {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border-left: 2px solid var(--gold-dim);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #adb4c2;
+}
+.settings__link {
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gold-dim);
+  cursor: pointer;
+}
+.settings__link:hover {
+  color: var(--gold-light);
+}
+
+.settings__title {
+  margin: 0 0 16px;
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid #2a2e36;
+  padding-bottom: 10px;
+}
+/* When the title carries a brand logo (e.g. mod.io) the logo stands in for
+   the section name; keep the localized text alongside it for clarity but
+   downscale it so the brand mark dominates. */
+.settings__title--with-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings__logo {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+}
+.settings__title--with-logo span {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--cream-dim);
+  font-weight: normal;
+}
+/* Status badge living in the section title — much louder than the inline
+   ✓/– next to the input so the connected state is obvious at a glance. */
+.settings__badge {
+  margin-left: auto;
+  padding: 5px 12px 4px;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+}
+.settings__title--with-logo .settings__badge {
+  /* override the smaller-size rule the .settings__title--with-logo span gets */
+  font-size: 11px;
+}
+.settings__badge.is-on {
+  color: #d4ffd8;
+  background: linear-gradient(180deg, #6e9659 0%, #3d5a30 100%);
+  border-color: #2a3f1f;
+}
+.settings__badge.is-on::before {
+  content: '● ';
+  color: #b6f0bf;
+}
+.settings__badge.is-off {
+  color: #ffd6d6;
+  background: linear-gradient(180deg, #a05779 0%, #501f36 100%);
+  border-color: #2c0e1a;
+}
+.settings__badge.is-off::before {
+  content: '○ ';
+  color: #ffb6b6;
+}
+/* Pending state — API key set but not yet authenticated */
+.settings__badge.is-pending {
+  color: #ffe7b6;
+  background: linear-gradient(180deg, #c8a94d 0%, #7a6730 100%);
+  border-color: #4d3f1c;
+}
+
+/* mod.io OAuth inline form bits */
+.settings__inline-hint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--gold-dim);
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.20);
+  border-left: 2px solid var(--gold-dim);
+  border-radius: 4px;
+  margin-top: 8px;
+}
+.settings__inline-error {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: #ffd6d6;
+  padding: 8px 12px;
+  background: rgba(192, 57, 43, 0.20);
+  border: 1px solid #c25555;
+  border-radius: 4px;
+}
+
+.modio-auth, .modio-auth-idle, .modio-connected {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #2a2e36;
+}
+
+.modio-expiry {
+  font-family: monospace;
+  font-size: 12px;
+  color: #c4c6d0;
+  background: rgba(0, 0, 0, 0.30);
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+.modio-terms {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.modio-code {
+  font-family: 'Consolas', 'Cascadia Mono', monospace !important;
+  font-size: 22px !important;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #6e9659 !important;
+  width: 200px;
+  font-weight: bold;
+}
+
+/* Vertical row (label · field · actions) */
+.settings__row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.settings__row:last-child {
+  margin-bottom: 0;
+}
+
+/* Inline row (label and control side-by-side) */
+.settings__row--inline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings__label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #adb4c2;
+  min-width: 200px;
+}
+
+.settings__field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings__input {
+  flex: 1;
+  padding: 8px 12px;
+  background: #1a1d24;
+  border: 1px solid #3a4150;
+  border-radius: 6px;
+  color: #d0d5dd;
+  font-family: monospace, var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  min-width: 0;
+}
+.settings__input::placeholder {
+  color: #6f7689;
+  font-style: italic;
+}
+
+.settings__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #6f7689;
+  background: rgba(0, 0, 0, 0.3);
+}
+.settings__status.is-ok {
+  color: #6e9659;
+  background: rgba(110, 150, 89, 0.15);
+}
+.settings__status.is-bad {
+  color: #c25555;
+  background: rgba(194, 85, 85, 0.15);
+}
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings__btn {
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #e6e8ee;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 6px;
+  box-shadow: inset 0 0 2px 0 #94b2ec, inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  transition: filter 80ms ease;
+}
+.settings__btn:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.settings__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.settings__btn--accent {
+  background: linear-gradient(to bottom, #6b8a52 0%, #3d5a30 70%);
+}
+.settings__btn--danger {
+  background: linear-gradient(to bottom, #a05779 0%, #501f36 70%);
+}
+.settings__btn--small {
+  padding: 5px 10px;
+  font-size: 10px;
+}
+
+/* Read-only "derived paths" block — stacked label + monospace path. */
+.settings__derived {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #2a2e36;
+}
+.settings__derived > div {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+}
+.settings__derived span {
+  color: var(--gold-dim);
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.settings__derived code {
+  color: #c4c6d0;
+  font-family: monospace;
+  font-size: 11px;
+  word-break: break-all;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
+/* Radio group for mod_location_mode */
+.settings__radio-group {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.settings__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #c4c6d0;
+}
+.settings__radio input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #4a5568;
+  background: #1a1d24;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0;
+}
+.settings__radio input[type="radio"]:checked {
+  border-color: #94b2ec;
+}
+.settings__radio input[type="radio"]:checked::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94b2ec;
+}

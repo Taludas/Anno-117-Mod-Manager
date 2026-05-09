@@ -1,0 +1,861 @@
+/* Mod Browser tab — mod.io-inspired card grid full-width.
+   No more split layout: clicking a card swaps the view to a full-width
+   detail page with a back button up top. */
+
+.browser {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  height: 100%;
+  padding: 18px 22px;
+}
+
+/* When the tab is in detail mode the template renders a single full-width
+   block (back-bar + browser-detail). Drop the toolbar/scroll grid rules
+   in that case via a body class — but the simplest is to just let .browser
+   collapse to one row when only one child exists, which already works
+   because grid-template-rows: auto 1fr places the only child in row 1. */
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.browser__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.browser__sort-label {
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.browser__sort {
+  appearance: none;
+  -webkit-appearance: none;
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 18px;
+  padding: 6px 28px 6px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #e6e8ee;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  cursor: pointer;
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c8a94d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center, center, right 8px center;
+  background-size: auto, auto, 14px;
+}
+.browser__sort:hover { filter: brightness(1.15); }
+.browser__sort:focus {
+  outline: none;
+  box-shadow: inset 0 0 2px 0 #94b2ec, 0 0 0 2px var(--gold-dim);
+}
+.browser__sort option {
+  background: #262f40;
+  color: #e6e8ee;
+}
+
+/* "My Subscriptions" toggle — same pill geometry as the sort dropdown so
+   the two read as a continuation of the toolbar. Off state is the neutral
+   navy disc; active state flips to the burgundy palette of the active
+   toolbar tab so the user sees they're filtered. */
+.browser__toggle {
+  appearance: none;
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 18px;
+  padding: 6px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #e6e8ee;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  cursor: pointer;
+}
+.browser__toggle:hover { filter: brightness(1.15); }
+.browser__toggle.is-active {
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #a05779 0%, #501f36 70%);
+}
+
+.browser__active-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  background: rgba(200, 169, 77, 0.10);
+  border: 1px solid var(--gold-dim);
+  border-radius: 14px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--cream);
+}
+.browser__clear-search {
+  background: rgba(0, 0, 0, 0.40);
+  border: 1px solid #3a4150;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  color: #c4c6d0;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.browser__clear-search:hover {
+  background: var(--gold-dim);
+  color: #1a1d24;
+}
+
+.browser__count {
+  margin-left: auto;
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  color: var(--cream-dim);
+}
+
+/* ── Scroll area + grid ──────────────────────────────────────────────────── */
+.browser__scroll {
+  /* Explicit ::-webkit-scrollbar styling below — overflow-y:scroll makes
+     the bar geometry permanent so a hover repaint never re-flows the grid
+     to insert/remove it (which is what was making it blink in WebKit2GTK). */
+  overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+/* Custom scrollbar so it's painted on top of content with stable width;
+   WebKit's default "auto-hide" overlay scrollbar was the source of the
+   flashing in/out you saw on every card hover. */
+.browser__scroll::-webkit-scrollbar {
+  width: 12px;
+}
+.browser__scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.30);
+  border-radius: 0;
+}
+.browser__scroll::-webkit-scrollbar-thumb {
+  background: #3a4150;
+  border: 2px solid #1a1d24;
+  border-radius: 6px;
+}
+.browser__scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dim);
+}
+
+.browser__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 20px;
+  font-size: 13px;
+  color: var(--cream-dim);
+  text-align: center;
+}
+.browser__empty--error { color: #ffd6d6; }
+
+.mod-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 4px;
+}
+
+/* ── mod.io-style card ───────────────────────────────────────────────────── */
+.mod-card {
+  display: flex;
+  flex-direction: column;
+  background: #1f242c;
+  border: 1px solid #2a2e36;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  /* Hover only changes border-color. Tried contain/isolation/translateZ to
+     stabilise things — they were the actual cause of cards rendering each
+     other's content on WebKit2GTK 2.50 (compositor bug). Plain CSS only. */
+  transition: border-color 120ms ease;
+}
+.mod-card:hover {
+  border-color: var(--gold);
+}
+
+.mod-card__media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #14161c;
+  overflow: hidden;
+}
+.mod-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mod-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 38px;
+  color: #3a4150;
+}
+/* Hover actions on the hero — Endorse top-left, Subscribe top-right.
+   Hidden by default, fade in when the card is hovered. Active state
+   (already endorsed / subscribed) keeps them visible permanently. */
+.mod-card__hover-action {
+  position: absolute;
+  top: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.55);
+  background: rgba(20, 22, 28, 0.78);
+  color: #f4f4f4;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  /* Pure opacity transition — transform/scale animations were producing a
+     layout-shift visible across neighbouring cards on each hover swap. */
+  transition: opacity 100ms ease, background 100ms ease, color 100ms ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.55);
+  padding: 0;
+  will-change: opacity;
+}
+.mod-card:hover .mod-card__hover-action,
+.mod-card__hover-action.is-active {
+  opacity: 1;
+}
+.mod-card__hover-action:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.mod-card__hover-action:disabled {
+  cursor: not-allowed;
+}
+.mod-card__hover-action--endorse {
+  left: 8px;
+}
+.mod-card__hover-action--endorse.is-active {
+  background: linear-gradient(180deg, #c8a94d 0%, #7a6730 100%);
+  color: #1a1d24;
+  border-color: #4d3f1c;
+  text-shadow: none;
+}
+.mod-card__hover-action--subscribe {
+  right: 8px;
+}
+.mod-card__hover-action--subscribe.is-active {
+  background: linear-gradient(180deg, #6e9659 0%, #3d5a30 100%);
+  color: #d4ffd8;
+  border-color: #2a3f1f;
+}
+
+.mod-card__body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.mod-card__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--cream);
+  /* Single line with ellipsis like mod.io */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mod-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #adb4c2;
+  gap: 10px;
+}
+.mod-card__author {
+  font-style: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mod-card__author--link {
+  color: var(--gold-dim);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dotted transparent;
+  transition: color 100ms ease, border-color 100ms ease;
+}
+.mod-card__author--link:hover {
+  color: var(--gold);
+  border-bottom-color: var(--gold-dim);
+}
+.mod-card__date {
+  white-space: nowrap;
+  color: var(--cream-dim);
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.mod-card__summary {
+  margin: 0;
+  /* Honours the Settings → Reading text size choice (theme.css). The
+     line-clamp keeps the card height bounded — growing the font just
+     shortens what's visible. */
+  font-size: calc(13px * var(--reading-scale));
+  line-height: 1.45;
+  color: #c4c6d0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(13px * 1.45 * 3); /* reserve space so cards align */
+}
+
+.mod-card__tags {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.mod-card__tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #2a2e36;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #d0d5dd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+.mod-card__more {
+  font-size: 11px;
+  color: var(--cream-dim);
+  white-space: nowrap;
+}
+
+.mod-card__stats {
+  display: flex;
+  gap: 14px;
+  padding: 6px 0;
+  border-top: 1px solid #2a2e36;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--cream-dim);
+}
+
+/* Primary CTA on the card: install/update. Stylised as the dominant action
+   the user will reach for in a mod manager — accent-coloured by default,
+   gold/checked once already installed (so updates remain obvious). */
+.mod-card__install {
+  width: 100%;
+  padding: 10px 12px;
+  background: linear-gradient(to bottom, #6b8a52 0%, #3d5a30 70%);
+  border: 2px solid #181c26;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f4f4f4;
+  cursor: pointer;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 2px 0 rgba(255, 255, 255, 0.18);
+  transition: filter 100ms ease;
+}
+.mod-card__install:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.mod-card__install:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.mod-card__install.is-installed {
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+}
+
+/* Card actions row — Install/Update sit side-by-side with Uninstall when
+   the mod is on disk, so the user sees both moves in one glance. The
+   wrapper takes the full width of the card footer; flex:1 on each child
+   keeps the buttons balanced regardless of label length (translation). */
+.mod-card__actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.mod-card__actions .mod-card__install {
+  flex: 1;
+}
+.mod-card__uninstall {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  background: linear-gradient(to bottom, #8a3f3f 0%, #5c2828 70%);
+  border: 2px solid #181c26;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f4f4f4;
+  cursor: pointer;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 2px 0 rgba(255, 255, 255, 0.15);
+  transition: filter 100ms ease;
+}
+/* When Uninstall is the only action (mod is installed AND up to date)
+   it takes the whole footer width like the standalone Install button —
+   keeps the card silhouette consistent across states. */
+.mod-card__uninstall--solo {
+  flex: 1;
+}
+.mod-card__uninstall:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.mod-card__uninstall:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+.browser__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 4px 4px;
+}
+.browser__page {
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  color: var(--cream-dim);
+}
+
+/* ── Detail page (full-width) ────────────────────────────────────────────── */
+.browser-detail__back-bar {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2e36;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.browser-detail {
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.browser-detail--empty {
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  font-size: 13px;
+  color: var(--cream-dim);
+  text-align: center;
+}
+
+/* Header: image left + info right (the existing layout was fine here) */
+.browser-detail__header {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 18px;
+  padding: 18px 20px 0;
+}
+.browser-detail__hero {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #14161c;
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: start;
+}
+.browser-detail__hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.browser-detail__hero--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  color: #3a4150;
+}
+.browser-detail__head-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.browser-detail__head-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+.browser-detail__head-actions .browser-detail__big-btn {
+  flex: 1 1 0;
+  min-width: 140px;
+}
+
+.browser-detail__big-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f4f4f4;
+  border: 2px solid #181c26;
+  border-radius: 8px;
+  cursor: pointer;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 0 2px 0 rgba(255, 255, 255, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.40);
+  transition: filter 100ms ease;
+}
+.browser-detail__big-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.browser-detail__big-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.browser-detail__big-btn--endorse {
+  background: linear-gradient(180deg, #a05779 0%, #501f36 100%);
+}
+.browser-detail__big-btn--endorse.is-active {
+  background: linear-gradient(180deg, #c8a94d 0%, #7a6730 100%);
+  color: #1a1d24;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+
+.browser-detail__big-btn--subscribe {
+  background: linear-gradient(180deg, #6e9659 0%, #3d5a30 100%);
+  border-color: #1d2a14;
+}
+.browser-detail__big-btn--subscribe.is-active {
+  background: linear-gradient(180deg, #49566a 0%, #323e53 100%);
+  border-color: #181c26;
+}
+
+.browser-detail__updated {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--cream-dim);
+  padding: 2px 0;
+}
+
+.browser-detail__body {
+  padding: 14px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.browser-detail__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.browser-detail__author {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--gold-dim);
+}
+.browser-detail__author-link {
+  color: var(--gold);
+  font-style: normal;
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gold-dim);
+  margin-left: 4px;
+}
+.browser-detail__author-link:hover {
+  color: var(--gold-light);
+  border-bottom-style: solid;
+}
+
+.browser-detail__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--cream-dim);
+  font-family: monospace;
+  padding: 8px 0;
+  border-top: 1px dashed #2a2e36;
+  border-bottom: 1px dashed #2a2e36;
+}
+
+.browser-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.browser-detail__flash {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+.browser-detail__flash.is-ok {
+  background: rgba(110, 150, 89, 0.18);
+  border: 1px solid #6e9659;
+  color: #d4ffd8;
+}
+.browser-detail__flash.is-error {
+  background: rgba(192, 57, 43, 0.20);
+  border: 1px solid #c25555;
+  color: #ffd6d6;
+}
+
+.browser-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--cream-dim);
+  font-family: monospace;
+}
+
+.browser-detail__section {
+  margin: 8px 0 4px;
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px solid #2a2e36;
+  padding-bottom: 6px;
+}
+
+.browser-detail__desc,
+.browser-detail__changelog {
+  margin: 0;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.30);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  /* Honours the Settings → Reading text size choice (theme.css). */
+  font-size: calc(13px * var(--reading-scale));
+  line-height: 1.55;
+  color: #c4c6d0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Rich-text rendering for mod.io HTML descriptions — drop the pre-style
+   whitespace so paragraphs breathe, and re-style the structural tags
+   that mod.io's editor emits. */
+.browser-detail__desc.rich-text {
+  white-space: normal;
+}
+.browser-detail__desc.rich-text > *:first-child { margin-top: 0; }
+.browser-detail__desc.rich-text > *:last-child  { margin-bottom: 0; }
+.browser-detail__desc.rich-text h1,
+.browser-detail__desc.rich-text h2,
+.browser-detail__desc.rich-text h3,
+.browser-detail__desc.rich-text h4 {
+  font-family: var(--font-title);
+  color: var(--gold);
+  margin: 16px 0 8px;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+.browser-detail__desc.rich-text h1 { font-size: calc(18px * var(--reading-scale)); border-bottom: 1px solid #2a2e36; padding-bottom: 6px; }
+.browser-detail__desc.rich-text h2 { font-size: calc(15px * var(--reading-scale)); }
+.browser-detail__desc.rich-text h3 { font-size: calc(14px * var(--reading-scale)); }
+.browser-detail__desc.rich-text h4 { font-size: calc(13px * var(--reading-scale)); color: var(--gold-dim); }
+.browser-detail__desc.rich-text p {
+  margin: 8px 0;
+}
+.browser-detail__desc.rich-text strong,
+.browser-detail__desc.rich-text b {
+  color: var(--cream);
+  font-weight: 600;
+}
+.browser-detail__desc.rich-text em,
+.browser-detail__desc.rich-text i {
+  color: var(--gold-light);
+  font-style: italic;
+}
+.browser-detail__desc.rich-text ul,
+.browser-detail__desc.rich-text ol {
+  margin: 8px 0 8px 4px;
+  padding-left: 22px;
+}
+.browser-detail__desc.rich-text ul { list-style: disc; }
+.browser-detail__desc.rich-text ol { list-style: decimal; }
+.browser-detail__desc.rich-text li {
+  margin: 3px 0;
+}
+.browser-detail__desc.rich-text li::marker { color: var(--gold-dim); }
+.browser-detail__desc.rich-text a {
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gold-dim);
+}
+.browser-detail__desc.rich-text a:hover {
+  color: var(--gold-light);
+  border-bottom-style: solid;
+}
+.browser-detail__desc.rich-text blockquote {
+  margin: 10px 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--gold-dim);
+  background: rgba(0, 0, 0, 0.25);
+  color: #adb4c2;
+  font-style: italic;
+}
+.browser-detail__desc.rich-text code {
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.40);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #c8a94d;
+}
+.browser-detail__desc.rich-text pre {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.browser-detail__desc.rich-text hr {
+  border: none;
+  border-top: 1px dashed #2a2e36;
+  margin: 14px 0;
+}
+
+/* ── Bundled mods (Collection detail) ───────────────────────────────────── */
+.browser-detail__deps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.browser-detail__deps-empty {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--cream-dim);
+  padding: 8px 0;
+}
+.browser-detail__dep {
+  display: flex;
+  flex-direction: column;
+  background: #1f242c;
+  border: 1px solid #2a2e36;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.browser-detail__dep:hover {
+  border-color: var(--gold-dim);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.40);
+}
+.browser-detail__dep-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #14161c;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.browser-detail__dep-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.browser-detail__dep-ph {
+  font-size: 28px;
+  color: #3a4150;
+}
+.browser-detail__dep-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  min-width: 0;
+}
+.browser-detail__dep-name {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cream);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.browser-detail__dep-author {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--gold-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

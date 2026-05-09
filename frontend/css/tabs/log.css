@@ -1,0 +1,84 @@
+/* Modloader Log tab — toolbar with refresh/copy/open + monospace text body
+   sitting in a dark code panel. Lines containing ERROR / WARN / INFO get
+   colour-coded the same way the Tk version does. */
+
+.log-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 18px 22px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.log-view__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.log-view__path {
+  margin-left: auto;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--cream-dim);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  padding: 5px 10px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-view__warn {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: bold;
+  color: #ffcc00;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.log-view__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: #050c17;
+  border: 1px solid #181c26;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: 'Consolas', 'Cascadia Mono', 'DejaVu Sans Mono', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #c4c6d0;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.log-view__empty {
+  color: #6f7689;
+  font-style: italic;
+  white-space: pre-line;
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line--error {
+  color: #ff4c4c;
+}
+.log-line--warn {
+  color: #ffcc00;
+}
+.log-line--info {
+  color: #94b2ec;
+}

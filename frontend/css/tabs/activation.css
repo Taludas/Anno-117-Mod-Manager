@@ -1,0 +1,885 @@
+/* Activation tab — dark navy data table sitting on a warm parchment-tan
+   page background, mirroring the annolayouts pattern (parchment behind,
+   slate-blue table in front). The opposite of putting parchment cards on a
+   dark backdrop — looks much more "in-game codex". */
+
+.activation {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
+  padding: 24px 28px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Toolbar above the table (profile + count) ─────────────────────────── */
+
+.activation__toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0;
+}
+
+.activation__toolbar label {
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--gold);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* Profile selector — pill-shaped, same teal radial + inset blue highlight as
+   the HUD round buttons so it reads as part of the same visual family. */
+.activation__profile {
+  appearance: none;
+  -webkit-appearance: none;
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 18px;
+  padding: 6px 28px 6px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #e6e8ee;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  cursor: pointer;
+  /* Custom dropdown chevron in gold */
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c8a94d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center, center, right 8px center;
+  background-size: auto, auto, 14px;
+}
+.activation__profile:hover {
+  filter: brightness(1.15);
+}
+.activation__profile:focus {
+  outline: none;
+  box-shadow:
+    inset 0 0 2px 0 #94b2ec,
+    0 0 0 2px var(--gold-dim);
+}
+.activation__profile option {
+  background: #262f40;
+  color: #e6e8ee;
+}
+
+.activation__count {
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--gold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 7px 16px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+/* The total/active size sits next to the count, slightly less prominent so
+   the active count stays the headline figure. */
+.activation__count--size {
+  color: var(--cream-dim);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  border-color: rgba(200, 169, 77, 0.3);
+}
+.activation__count + .activation__count {
+  margin-left: 4px;
+}
+
+/* Toolbar action buttons (Activer tout / Tout désactiver / etc.) — share
+   the dark-disc vocabulary of the HUD, rectangular pill shape. */
+.activation__btn {
+  margin-left: 12px;
+  padding: 7px 16px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e6e8ee;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 16px;
+  box-shadow: inset 0 0 2px 0 #94b2ec, inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  transition: filter 80ms ease;
+}
+.activation__btn:hover {
+  filter: brightness(1.15);
+}
+.activation__btn--accent {
+  background: linear-gradient(to bottom, #6b8a52 0%, #3d5a30 70%);
+}
+.activation__btn--danger {
+  background: linear-gradient(to bottom, #a05779 0%, #501f36 70%);
+}
+.activation__btn + .activation__count {
+  margin-left: auto;
+}
+
+/* Segmented mode toggle (Gestion / Ordre de chargement) — pill-shaped pair
+   with the active half lit in burgundy. Sits flush so the whole thing reads
+   as a single switch, not two separate buttons. */
+.activation__mode {
+  margin-left: 18px;
+  display: inline-flex;
+  border: 2px solid #181c26;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+}
+.activation__mode-btn {
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c4c6d0;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  border: 0;
+  cursor: pointer;
+  transition: filter 80ms ease, background 80ms ease;
+}
+.activation__mode-btn:hover {
+  filter: brightness(1.15);
+}
+.activation__mode-btn.is-active {
+  background: linear-gradient(to bottom, #a05779 0%, #501f36 70%);
+  color: #f8eee6;
+}
+.activation__mode-btn + .activation__mode-btn {
+  border-left: 1px solid #181c26;
+}
+
+/* Sort headers go grey + non-clickable in load-order mode. */
+.mod-row__head.is-disabled {
+  color: #6f7689;
+  cursor: not-allowed;
+}
+.mod-row__head.is-disabled:hover {
+  color: #6f7689;
+}
+
+/* Draggable rows in Load Order mode — grab cursor + tighter visual hint
+   that the row itself is the drag handle (medallion shows ⋮⋮ instead of
+   the category initials in this mode). */
+.mod-row--draggable {
+  cursor: grab;
+}
+.mod-row--draggable:active {
+  cursor: grabbing;
+}
+.mod-row--draggable .mod-row__medallion {
+  font-family: var(--font-body);
+  font-size: 14px;
+  letter-spacing: -0.05em;
+  color: var(--gold);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Mod table (dark, like al-data-table) ──────────────────────────────── */
+
+/* Wraps the sortable header strip + the scrollable list so they live in the
+   same grid cell but the header stays pinned while the list scrolls. */
+.activation__list-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.activation__list {
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Sortable column header row — same grid as data rows, gold text, no hover. */
+.mod-row--head {
+  cursor: default;
+  background: linear-gradient(180deg, #3d4a5c 0%, #2f3a4a 100%);
+  border-bottom: 2px solid #4a5568;
+  padding: 10px 18px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.mod-row--head:hover {
+  background: linear-gradient(180deg, #3d4a5c 0%, #2f3a4a 100%);
+}
+.mod-row__head {
+  font-family: var(--font-title);
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--gold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  user-select: none;
+  cursor: pointer;
+  padding: 0;
+}
+.mod-row__head:hover {
+  color: var(--gold-light);
+}
+
+/* Row inside the table:
+   checkbox · medallion · category · name(+version below) · size · status */
+.mod-row {
+  display: grid;
+  /* Last column hosts the per-row actions (Update / Uninstall / info
+     bullet). Header has a matching empty cell to keep alignment. */
+  grid-template-columns: 24px 36px 140px 1fr 80px 70px 80px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #2a2e36;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+
+/* Per-row actions cell — three small icon-buttons at most. The whole cell
+   has stopPropagation so clicks here don't bubble up to selectMod(). */
+.mod-row__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.mod-row__action {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  color: var(--cream);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: inset 0 0 1px 0 rgba(148, 178, 236, 0.4);
+  transition: filter 80ms ease;
+}
+.mod-row__action:hover { filter: brightness(1.2); }
+.mod-row__action--update {
+  background: linear-gradient(to bottom, #6b8a52 0%, #3d5a30 70%);
+}
+.mod-row__action--uninstall {
+  background: linear-gradient(to bottom, #8a3f3f 0%, #5c2828 70%);
+}
+/* "Link to mod.io" — gold-tinted to read as informational/action rather
+   than destructive (uninstall) or version-related (update). Replaces the
+   old static ⓘ badge: clicking opens the link picker. */
+.mod-row__action--link {
+  background: linear-gradient(to bottom, #8a6e2c 0%, #5a4717 70%);
+}
+
+/* ── Link picker modal ──────────────────────────────────────────────── */
+.link-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--font-body);
+  color: var(--cream);
+}
+.link-picker__panel {
+  width: min(560px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #2c3850 0%, #1f2734 100%);
+  border: 1px solid var(--gold-faint);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.08),
+    inset 0 0 1px 0 rgba(200, 169, 77, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.7);
+}
+.link-picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(200, 169, 77, 0.2);
+}
+.link-picker__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+.link-picker__close {
+  background: transparent;
+  border: none;
+  color: var(--cream-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.link-picker__close:hover { color: var(--cream); }
+.link-picker__search {
+  padding: 12px 14px;
+  border-bottom: 1px solid #2a2e36;
+}
+.link-picker__search input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1a1d24;
+  border: 1px solid #3a4150;
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--cream);
+}
+.link-picker__search input:focus {
+  outline: 1px solid var(--gold);
+  outline-offset: -1px;
+}
+.link-picker__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 14px;
+}
+.link-picker__empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--cream-dim);
+  font-style: italic;
+}
+.link-picker__empty--error { color: #d97070; }
+.link-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid #2a2e36;
+}
+.link-picker__row:last-child { border-bottom: none; }
+.link-picker__logo {
+  width: 56px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: #1a1d24;
+  flex-shrink: 0;
+}
+.link-picker__meta {
+  flex: 1;
+  min-width: 0;
+}
+.link-picker__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.link-picker__author {
+  font-size: 11px;
+  color: var(--cream-dim);
+  font-style: italic;
+}
+.link-picker__confirm {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #6b8a52 0%, #3d5a30 70%);
+  color: #f4f4f4;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: inset 0 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.link-picker__confirm:hover:not(:disabled) { filter: brightness(1.15); }
+.link-picker__confirm:disabled { opacity: 0.55; cursor: not-allowed; }
+.link-picker__foot {
+  padding: 10px 14px;
+  border-top: 1px solid #2a2e36;
+  display: flex;
+  justify-content: flex-end;
+}
+.link-picker__cancel {
+  padding: 6px 16px;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.link-picker__cancel:hover { filter: brightness(1.15); }
+.mod-row__category-cell {
+  font-family: var(--font-title);
+  font-size: 10px;
+  color: #adb4c2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* Sub-mod indent — the loader treats nested mods as children of the parent
+   folder, so the UI shows them indented + with a faint left bar. */
+.mod-row--sub {
+  padding-left: 48px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.mod-row--sub::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(148, 178, 236, 0.18);
+}
+.mod-row {
+  position: relative;
+}
+.mod-row__text {
+  min-width: 0;
+}
+.mod-row__size {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: #6f7689;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.mod-row:last-child {
+  border-bottom: none;
+}
+.mod-row:hover {
+  background: rgba(100, 130, 170, 0.08);
+}
+.mod-row.is-selected {
+  background: rgba(160, 87, 121, 0.18);
+  box-shadow: inset 4px 0 0 #a05779;
+}
+
+.mod-row__check {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #4a5568;
+  border-radius: 3px;
+  background: #1a1d24;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c8c8c8;
+  font-family: var(--font-title);
+  font-size: 14px;
+  line-height: 1;
+}
+.mod-row__check.is-on {
+  background: #2a3a52;
+  border-color: #94b2ec;
+}
+.mod-row__check.is-on::after {
+  content: '✔';
+  color: #94b2ec;
+}
+
+/* Tri-state checkbox sitting in the header row — clicking it toggles every
+   mod's active state at once (replaces the old "Activer tout"/"Tout
+   désactiver" buttons that cluttered the toolbar). */
+.mod-row__check--head {
+  cursor: pointer;
+  border-color: var(--gold-dim);
+  transition: filter 80ms ease;
+}
+.mod-row__check--head:hover {
+  filter: brightness(1.25);
+}
+.mod-row__check--all {
+  background: #2a3a52;
+  border-color: #94b2ec;
+}
+.mod-row__check--all::after {
+  content: '✔';
+  color: #94b2ec;
+}
+.mod-row__check--partial {
+  background: #2a3a52;
+  border-color: #94b2ec;
+}
+.mod-row__check--partial::after {
+  content: '–';
+  color: #94b2ec;
+  font-weight: bold;
+  font-size: 16px;
+  margin-top: -2px;
+}
+
+/* Circular gold-rimmed medallion for category icon */
+.mod-row__medallion {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c8c8c8;
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+}
+
+.mod-row__name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: #d0d5dd;
+  letter-spacing: 0.02em;
+}
+
+.mod-row__category {
+  font-family: var(--font-title);
+  font-size: 10px;
+  color: #8a91a0;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Version caption sits under the name in the text cell — small, faint, italic
+   so it doesn't compete with the mod title. */
+.mod-row__version {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: #6f7689;
+  font-style: italic;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+
+.mod-row__action--conflict {
+  background: linear-gradient(to bottom, #a03030 0%, #6b1e1e 70%);
+  font-weight: bold;
+}
+.mod-row__action--dep-warn {
+  background: linear-gradient(to bottom, #a06020 0%, #6b3e10 70%);
+  font-weight: bold;
+}
+.mod-row__action--version-warn {
+  background: linear-gradient(to bottom, #b87a10 0%, #7a4e08 70%);
+  font-weight: bold;
+  font-style: normal;
+}
+.mod-row__action--version-warn-info {
+  opacity: 0.75;
+}
+.mod-row__name--conflict { color: #e74c3c; }
+.mod-row__name--dep-warn { color: #e67e22; }
+
+/* Status pill — uses the toolbar's burgundy / teal vocabulary */
+.mod-row .pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  background: linear-gradient(180deg, #a05779 0%, #501f36 100%);
+  color: #fff0e0;
+  border: 1px solid #181c26;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+}
+.mod-row .pill--ghost {
+  background: linear-gradient(180deg, #49566a 0%, #323e53 100%);
+  color: #c8c8c8;
+}
+
+/* ── Right detail panel (dark card, same vocabulary as the table) ─────── */
+
+.mod-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* Banner image at the very top of the right panel — full width, fixed
+   aspect, the mod's local banner.png/jpg if present, otherwise a placeholder
+   parchment-style block. */
+.mod-detail__banner {
+  display: block;
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-bottom: 1px solid #2a2e36;
+  background: linear-gradient(180deg, #3d4a5c 0%, #2f3a4a 100%);
+}
+.mod-detail__banner--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #6f7689;
+  font-style: italic;
+  font-size: 12px;
+  padding: 24px;
+}
+.mod-detail__banner--placeholder .ornament {
+  margin: 0 0 10px;
+  width: 60%;
+}
+
+.mod-detail__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid #2a2e36;
+}
+.mod-detail__title {
+  font-family: var(--font-title);
+  font-size: 18px;
+  color: #e6e8ee;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.mod-detail__creator {
+  font-size: 12px;
+  color: #8a91a0;
+  font-style: italic;
+}
+
+.mod-detail__section {
+  padding: 14px 18px;
+  border-bottom: 1px solid #2a2e36;
+}
+.mod-detail__section:last-child {
+  border-bottom: none;
+}
+.mod-detail__section h4 {
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #c8a94d;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+.mod-detail__section p {
+  margin: 0;
+  /* Honours the Settings → Reading text size choice (theme.css). */
+  font-size: calc(13px * var(--reading-scale));
+  line-height: 1.55;
+  color: #c4c6d0;
+}
+
+.mod-detail__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 12px;
+}
+.mod-detail__meta dt {
+  color: #8a91a0;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mod-detail__meta dd {
+  margin: 0;
+  color: #d0d5dd;
+  word-break: break-all;
+}
+
+.mod-detail__empty {
+  padding: 80px 24px;
+  text-align: center;
+  color: #8a91a0;
+  font-style: italic;
+}
+
+/* Action button row at the bottom of the detail card — pinned to bottom via
+   margin-top:auto on the row, mirrors the in-game footer toolbar. */
+.mod-detail__actions {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid #2a2e36;
+  background: rgba(0, 0, 0, 0.2);
+}
+.mod-detail__btn {
+  flex: 1;
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e6e8ee;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  border: 2px solid #181c26;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 2px 0 #94b2ec,
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  transition: filter 80ms ease;
+}
+.mod-detail__btn:hover {
+  filter: brightness(1.15);
+}
+.mod-detail__btn--danger {
+  background: linear-gradient(to bottom, #a05779 0%, #501f36 70%);
+}
+
+/* Override the older parchment ornament colour for the dark surface */
+.mod-detail .ornament {
+  color: #c8a94d;
+}
+.mod-detail .ornament::before,
+.mod-detail .ornament::after {
+  background: linear-gradient(to right, transparent, #c8a94d, transparent);
+}
+
+/* ── Dependency-issue dialog ─────────────────────────────────────────── */
+.dep-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--font-body);
+  color: var(--cream);
+}
+.dep-dialog__panel {
+  width: min(480px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #2c3850 0%, #1f2734 100%);
+  border: 1px solid var(--gold-faint);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.08),
+    inset 0 0 1px 0 rgba(200, 169, 77, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.7);
+}
+.dep-dialog__head {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(200, 169, 77, 0.2);
+}
+.dep-dialog__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--gold);
+  line-height: 1.4;
+}
+.dep-dialog__list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.dep-dialog__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.dep-dialog__item:last-child { border-bottom: none; }
+.dep-dialog__item-name {
+  font-size: 13px;
+  color: #c8c8d0;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dep-dialog__item-actions { flex-shrink: 0; }
+.dep-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(200, 169, 77, 0.15);
+}
+.dep-dialog__btn {
+  font-family: var(--font-body);
+  font-size: 12px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.dep-dialog__btn--primary {
+  background: linear-gradient(to bottom, #4a7a3a 0%, #2e5022 70%);
+  color: #e8f0e0;
+}
+.dep-dialog__btn--danger {
+  background: linear-gradient(to bottom, #8a3030 0%, #5c1e1e 70%);
+  color: #f0e0e0;
+}
+.dep-dialog__btn--ghost {
+  background: rgba(255,255,255,0.06);
+  color: var(--cream-dim);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.dep-dialog__btn:hover { filter: brightness(1.15); }
+.dep-dialog__error {
+  padding: 6px 16px;
+  font-size: 12px;
+  color: #d97070;
+}

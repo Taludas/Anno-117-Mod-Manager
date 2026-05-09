@@ -1,4 +1,4 @@
-PACKAGE=anno117-modmanager
+PACKAGE=app
 VENVNAME=tamm
 
 ##############################################################################
@@ -29,8 +29,11 @@ libs.clean:
 
 
 # exe make targets ###########################
+# Bundle the pywebview entry (app.py) plus the frontend assets and the
+# data/ icons the legacy build already pulled in. Frontend lives outside
+# data/ now so it needs its own --add-data.
 exe: libs
-	pyinstaller --onefile --windowed --add-data "data;data" --icon="app_icon.ico" --version-file="file_version_info.txt" --name "Anno 117 Mod Manager" $(PACKAGE).py
+	pyinstaller --onefile --windowed --add-data "data;data" --add-data "frontend;frontend" --add-data "_version.py;." --icon="app_icon.ico" --version-file="file_version_info.txt" --name "Anno 117 Mod Manager" $(PACKAGE).py
 
 exe.clean:
 	rd /s /q build

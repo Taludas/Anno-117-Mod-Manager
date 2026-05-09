@@ -1,0 +1,621 @@
+/* Tweaking tab — left list of tweakable mods + right form built dynamically
+   from each mod's Options schema (enum/slider/toggle/text). */
+
+.tweak {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  height: 100%;
+  padding: 24px 28px;
+  overflow: hidden;
+}
+
+/* ── Left list ──────────────────────────────────────────────────────────── */
+
+.tweak-list {
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.tweak-list__header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #2a2e36;
+  background: linear-gradient(180deg, #3d4a5c 0%, #2f3a4a 100%);
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.tweak-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.tweak-list__item {
+  padding: 12px 14px;
+  border-bottom: 1px solid #2a2e36;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+.tweak-list__item:hover {
+  background: rgba(100, 130, 170, 0.10);
+}
+.tweak-list__item.is-selected {
+  background: rgba(160, 87, 121, 0.18);
+  box-shadow: inset 4px 0 0 #a05779;
+}
+
+.tweak-list__name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: #e6e8ee;
+  font-style: italic;
+}
+.tweak-list__meta {
+  margin-top: 2px;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #8a91a0;
+}
+.tweak-list__empty {
+  padding: 40px 18px;
+  text-align: center;
+  color: #6f7689;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── Right form ─────────────────────────────────────────────────────────── */
+
+.tweak-form {
+  background: linear-gradient(180deg, #252a33 0%, #1e2128 100%);
+  border: 1px solid #3a4150;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.tweak-form__header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #2a2e36;
+  background: linear-gradient(180deg, #3d4a5c 0%, #2f3a4a 100%);
+}
+
+.tweak-form__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: #e6e8ee;
+}
+
+.tweak-form__rows {
+  padding: 14px 18px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tweak-form__empty {
+  padding: 80px 24px;
+  text-align: center;
+  color: #6f7689;
+  font-style: italic;
+}
+.tweak-form__empty .ornament {
+  margin-bottom: 14px;
+  color: var(--gold);
+}
+
+/* ── Per-row option ─────────────────────────────────────────────────────── */
+
+.tweak-row {
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid #2a2e36;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 200ms ease;
+}
+.tweak-row.is-saving {
+  /* Brief flash when the value just got persisted to the .jsonc */
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 8px rgba(200, 169, 77, 0.25);
+}
+/* Gold left rail on options whose current value differs from the
+   schema default — pairs with the "Default values" separator that
+   splits modified options (top) from defaults (bottom). inset
+   box-shadow instead of border-left so the row's content doesn't
+   shift sideways relative to its unmodified siblings. */
+.tweak-row.is-modified {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.tweak-row.is-saving.is-modified {
+  /* Saving flash takes precedence — stack the gold rail under it. */
+  box-shadow:
+    inset 3px 0 0 var(--gold),
+    0 0 0 1px var(--gold),
+    0 0 8px rgba(200, 169, 77, 0.25);
+}
+
+/* Carved separator between "modified" and "defaults" groups: thin
+   gold-fade rules on either side of an uppercase Playfair label,
+   matching the rest of the app's section dividers. */
+.tweak-form__separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 4px;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.tweak-form__separator::before,
+.tweak-form__separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-faint), transparent);
+}
+
+.tweak-row__label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: bold;
+  color: #d0d5dd;
+  letter-spacing: 0.02em;
+}
+
+.tweak-row__hint {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--gold-dim);
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+/* Generic select / text input shared between enum + text rows */
+.tweak-control {
+  background: #1a1d24;
+  border: 1px solid #3a4150;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: #d0d5dd;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.tweak-control:focus {
+  outline: 1px solid var(--gold);
+}
+
+/* Enum dropdowns get the in-game HUD styling: radial-navy disc with a
+   pale-blue inset highlight and a custom gold chevron. Mirrors the
+   .browser__sort dropdown but keeps the 6px rounded corners of the
+   Tweak form controls (the Browser uses a pill 18px instead). */
+select.tweak-control {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #181c26;
+  padding: 6px 28px 6px 12px;
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0%, transparent 55%),
+    radial-gradient(circle, #49566a 0%, #323e53 70%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c8a94d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center, center, right 8px center;
+  background-size: auto, auto, 12px;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  color: #e6e8ee;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+select.tweak-control:hover { filter: brightness(1.15); }
+select.tweak-control:focus {
+  outline: none;
+  box-shadow: inset 0 0 2px 0 #94b2ec, 0 0 0 2px var(--gold-dim);
+}
+select.tweak-control option {
+  background: #262f40;
+  color: #e6e8ee;
+}
+
+/* Slider with value label and bounds */
+.tweak-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #8a91a0;
+}
+.tweak-slider input[type="range"] {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  background: linear-gradient(to right, #4a5568 0%, #4a5568 100%);
+  border-radius: 3px;
+  outline: none;
+}
+.tweak-slider input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #a05779, #501f36 70%);
+  border: 2px solid #181c26;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  cursor: grab;
+}
+.tweak-slider input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #a05779, #501f36 70%);
+  border: 2px solid #181c26;
+  box-shadow: inset 0 0 2px 0 #94b2ec;
+  cursor: grab;
+}
+.tweak-slider__bound {
+  min-width: 30px;
+  text-align: center;
+}
+.tweak-slider__value {
+  min-width: 50px;
+  text-align: center;
+  color: var(--gold);
+  font-weight: bold;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--gold-dim);
+  border-radius: 10px;
+}
+
+/* Toggle pill — modern iOS-style switch */
+.tweak-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.tweak-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.tweak-toggle__pill {
+  width: 44px;
+  height: 22px;
+  border-radius: 11px;
+  background: #2a2e36;
+  border: 2px solid #181c26;
+  position: relative;
+  transition: background 120ms ease;
+}
+.tweak-toggle__pill.is-on {
+  background: linear-gradient(to bottom, #6e9659, #3d5a30);
+}
+.tweak-toggle__dot {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d0d5dd;
+  transition: transform 120ms ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.tweak-toggle__pill.is-on .tweak-toggle__dot {
+  transform: translateX(22px);
+  background: #f8eee6;
+}
+.tweak-toggle__text {
+  font-family: var(--font-title);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+
+/* Colour row — clickable swatch (opens the in-app picker popover) glued to
+   the left of the int text field, reading as one composite control. The
+   text input stays editable for power users entering raw signed-int ARGB
+   values directly; live edits there repaint the swatch via inline JS. */
+.tweak-color {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #3a4150;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1a1d24;
+}
+.tweak-color__swatch {
+  width: 36px;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  border-right: 1px solid #3a4150;
+  cursor: pointer;
+  /* Subtle inner highlight so the swatch reads as a recessed plate even
+     when the colour is mid-tone (no contrast against the dark frame). */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+              inset 0 0 6px rgba(0, 0, 0, 0.5);
+}
+.tweak-color__swatch:hover {
+  filter: brightness(1.1);
+}
+.tweak-color__text {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.tweak-color__text:focus {
+  outline: 1px solid var(--gold);
+  outline-offset: -1px;
+}
+
+/* ── In-app colour picker popover ───────────────────────────────────────── */
+
+.color-picker {
+  position: fixed;
+  z-index: 1000;
+  width: 268px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, #2c3850 0%, #1f2734 100%);
+  border: 1px solid var(--gold-faint);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(148, 178, 236, 0.08),
+    inset 0 0 1px 0 rgba(200, 169, 77, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-body);
+  color: var(--cream);
+}
+
+.color-picker__title {
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+  border-bottom: 1px solid rgba(200, 169, 77, 0.2);
+  padding-bottom: 8px;
+}
+
+.color-picker__row {
+  display: flex;
+  gap: 10px;
+  height: 180px;
+}
+
+/* Saturation × Value square — three stacked layers: hue background (set via
+   inline style), white→transparent left-to-right (saturation), then
+   transparent→black top-to-bottom (value). The cursor is a small ring
+   filled with the live colour. */
+.color-picker__sv {
+  position: relative;
+  flex: 1;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  cursor: crosshair;
+  overflow: hidden;
+  user-select: none;
+}
+.color-picker__sv-white,
+.color-picker__sv-black {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.color-picker__sv-white {
+  background: linear-gradient(to right, #fff, transparent);
+}
+.color-picker__sv-black {
+  background: linear-gradient(to bottom, transparent, #000);
+}
+.color-picker__sv-cursor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Hue rail — vertical 360° gradient with a flat horizontal cursor. */
+.color-picker__hue {
+  position: relative;
+  width: 18px;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom,
+    #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%,
+    #00f 67%, #f0f 83%, #f00 100%);
+  cursor: ns-resize;
+  user-select: none;
+}
+.color-picker__hue-cursor {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 4px;
+  margin-top: -2px;
+  background: var(--cream);
+  border: 1px solid #181c26;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Before/After swatches let the user judge the new colour against the one
+   they started with — same trick OS pickers use to prevent regret. */
+.color-picker__compare {
+  display: flex;
+  gap: 8px;
+}
+.color-picker__compare-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.color-picker__compare-label {
+  font-family: var(--font-title);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  text-align: center;
+}
+.color-picker__compare-swatch {
+  height: 22px;
+  border: 1px solid #181c26;
+  border-radius: 3px;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.color-picker__inputs {
+  display: flex;
+  gap: 8px;
+}
+.color-picker__field {
+  flex: 1;
+  /* Without this, the default min-width:auto on flex children makes the
+     input refuse to shrink below its intrinsic content width — the INT
+     field (e.g. -2147483648) was overflowing the popover on the right. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+.color-picker__field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: #1a1d24;
+  border: 1px solid #3a4150;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--cream);
+  letter-spacing: 0.04em;
+}
+.color-picker__field input:focus {
+  outline: 1px solid var(--gold);
+  outline-offset: -1px;
+}
+
+/* In-game palette grid — round swatches mirroring the Anno 117 colour
+   picker. Six per row keeps the popover compact; selected swatch gets a
+   gold ring so the user sees their current pick at a glance. */
+.color-picker__palette {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 8px 2px 4px;
+  border-top: 1px solid rgba(200, 169, 77, 0.15);
+}
+.color-picker__swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #181c26;
+  border-radius: 50%;
+  cursor: pointer;
+  /* Glossy dome highlight + inner shadow so each swatch reads as the same
+     in-game enamel button as the toolbar discs. */
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4);
+}
+.color-picker__swatch:hover {
+  filter: brightness(1.15);
+}
+.color-picker__swatch.is-selected {
+  /* Double ring (dark inner + gold outer) so the selection survives both
+     bright and dark swatch fills. */
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.4),
+    0 0 0 2px var(--gold);
+}
+
+.color-picker__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid rgba(200, 169, 77, 0.15);
+}
+.color-picker__btn {
+  padding: 6px 14px;
+  border: 1px solid #181c26;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #49566a 0%, #323e53 70%);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: inset 0 0 1px 0 rgba(148, 178, 236, 0.4);
+}
+.color-picker__btn:hover {
+  filter: brightness(1.15);
+}
+.color-picker__btn--primary {
+  background: radial-gradient(circle, #a05779 0%, #501f36 70%);
+}
