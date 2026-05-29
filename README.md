@@ -81,14 +81,31 @@ A desktop application for managing mods for **Anno 117: Pax Romana**. It covers 
 
 ### Linux / From Source
 
+**1. Install Python 3.10+ and the Tcl/Tk system library** (Tkinter is not bundled on most distros):
+
+- Arch / Manjaro: `sudo pacman -S tk`
+- Debian / Ubuntu: `sudo apt install python3-tk`
+- Fedora: `sudo dnf install python3-tkinter`
+
+**2. Clone and install Python dependencies:**
+
 ```bash
 git clone https://github.com/taludas/anno-117-mod-manager.git
-cd anno117-mod-manager
+cd anno-117-mod-manager
+pip install --user pillow requests beautifulsoup4 tkinterdnd2
+python anno117-modmanager.py
+```
+
+If `pip install` complains about an *externally-managed environment* (PEP 668), either add `--break-system-packages`, install the deps from your distro's package manager (e.g. `python-pillow python-requests python-beautifulsoup4` on Arch — `tkinterdnd2` still needs pip), or use a virtualenv:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install pillow requests beautifulsoup4 tkinterdnd2
 python anno117-modmanager.py
 ```
 
-The app stores its settings and logs under `~/.config/Anno 117 Mod Manager/` on Linux.
+The app stores its settings and logs under `~/.config/Anno 117 Mod Manager/` on Linux. Anno 117 itself runs through Steam + Proton — the mod manager auto-detects the game in `~/.steam/steam/steamapps/common/` and looks for the in-game `Documents` folder inside the Proton prefix at `~/.steam/steam/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/Documents/`.
 
 ---
 
