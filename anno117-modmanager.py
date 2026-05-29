@@ -5256,6 +5256,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if is_installed_locally:
                     _lbl_nosub = tk.Label(install_area, text="!", font=FONT_UI_BOLD, fg=FG_GOLD, bg=BG_SECTION)
                     _lbl_nosub.pack(side="left", padx=(0, 4))
+
                     self._attach_tooltip(_lbl_nosub, T(1999101477))
 
                 _ico_inst = load_icon("install_mod", (32, 32))
