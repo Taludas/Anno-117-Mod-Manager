@@ -1907,4 +1907,54 @@
     <LineId>1999101484</LineId>
     <Text>Установлено: v{0} → Доступно: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>Последнее обновление</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Trending</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Больше всего подписчиков</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Подавить проверку версии для этого мода</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>Значок обновления (!) подавлен для этого мода.
+Вы можете убрать это в Настройках.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Подавленные проверки обновлений</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Откройте страницу mod.io</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Сохранить</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' сохранен. Предыдущая версия сохранена как '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Сохранить текущий выбор мода в '{0}'.
+Предыдущая версия автоматически сохраняется.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Очистить все</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(Щелкните правой кнопкой мыши, чтобы подавить)</Text>
+  </Text>
 </Texts>

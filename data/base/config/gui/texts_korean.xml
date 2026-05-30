@@ -1896,4 +1896,54 @@ Anno 117의 기본 설치 디렉터리를 선택하세요.</Text>
     <LineId>1999101484</LineId>
     <Text>설치됨: v{0} → 사용 가능: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>마지막 업데이트</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>트렌드</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>대부분의 구독자</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>이 모드의 버전 확인을 비활성화합니다</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>이 모드에 대한 업데이트 배지(!)가 표시되지 않습니다.
+설정에서 지울 수 있습니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>억제된 업데이트 확인</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Mod.io 페이지 열기</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>저장</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}'이(가) 저장되었습니다. 이전 버전이 '{0}.bak'으로 백업되었습니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>현재 모드 선택을 '{0}'에 저장합니다.
+이전 버전은 자동으로 백업됩니다.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>모두 지우기</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(마우스 오른쪽 버튼으로 클릭)</Text>
+  </Text>
 </Texts>

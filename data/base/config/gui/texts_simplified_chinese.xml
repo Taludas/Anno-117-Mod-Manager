@@ -1896,4 +1896,54 @@
     <LineId>1999101484</LineId>
     <Text>已安装： v{0} → 可用： v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>最后更新</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>趋势</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>最多订阅者</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>禁止对该修改器进行版本检查</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>此模块已抑制更新徽章（！）。
+您可以在 "设置 "中清除。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>抑制更新检查</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>打开 mod.io 页面</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>节省</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>保存了'{0}'。上一版本备份为"{0}.bak"。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>将当前模式选择保存为"{0}"。
+之前的版本会自动备份。</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>全部清除</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(右键单击可取消）</Text>
+  </Text>
 </Texts>

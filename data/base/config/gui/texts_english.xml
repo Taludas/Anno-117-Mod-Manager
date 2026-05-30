@@ -1896,4 +1896,54 @@ Please select the "Documents\Anno 117 - Pax Romana" folder in the next dialog.</
     <LineId>1999101484</LineId>
     <Text>Installed: v{0} → Available: v{1}</Text>
   </Text>
+  <Text>
+    <LineId>1999101485</LineId>
+    <Text>Last Updated</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Trending</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Most Subscribers</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Suppress version check for this mod</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>Update badge (!) suppressed for this mod.
+You can clear this in Settings.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Suppressed Update Checks</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Open mod.io page</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Save</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' saved. Previous version backed up as '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Save current mod selection to '{0}'.
+Previous version is automatically backed up.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Clear All</Text>
+  </Text>
+  <Text>
+    <LineId>1999101496</LineId>
+    <Text>(Right-click to suppress)</Text>
+  </Text>
 </Texts>

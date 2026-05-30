@@ -1904,4 +1904,54 @@ Selezionare la cartella "DocumentiAnno 117 - Pax Romana" nella finestra di dialo
     <LineId>1999101484</LineId>
     <Text>Installato: v{0} → Disponibile: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>Ultimo aggiornamento</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Tendenza</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Il maggior numero di abbonati</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Sopprimere il controllo di versione per questa mod</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>Badge di aggiornamento (!) soppresso per questa mod.
+È possibile eliminarlo nelle Impostazioni.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Controlli di aggiornamento soppressi</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Aprire la pagina mod.io</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Risparmiare</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' salvato. Versione precedente salvata come '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Salva la selezione della mod corrente in '{0}'.
+La versione precedente viene automaticamente salvata.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Cancella tutto</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(Fare clic con il tasto destro del mouse per sopprimere)</Text>
+  </Text>
 </Texts>

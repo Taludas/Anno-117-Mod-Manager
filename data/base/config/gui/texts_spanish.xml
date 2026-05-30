@@ -1903,4 +1903,54 @@ Seleccione la carpeta "Documentos/Anno 117 - Pax Romana" en el siguiente cuadro 
     <LineId>1999101484</LineId>
     <Text>Instalado: v{0} → Disponible: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>Última actualización</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Tendencias</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Más abonados</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Suprimir la comprobación de la versión de este mod</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>Insignia de actualización suprimida para este mod.
+Puedes borrarlo en Configuración.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Comprobaciones de actualización suprimidas</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Abrir la página mod.io</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Guardar</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' guardado. Versión anterior guardada como '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Guarda la selección actual de mods en '{0}'.
+La versión anterior se guarda automáticamente.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Borrar todo</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(Haga clic con el botón derecho para suprimir)</Text>
+  </Text>
 </Texts>

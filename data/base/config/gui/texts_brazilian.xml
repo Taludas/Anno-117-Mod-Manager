@@ -1905,4 +1905,54 @@ Selecione a pasta "Documents\Anno 117 - Pax Romana" na próxima caixa de diálog
     <LineId>1999101484</LineId>
     <Text>Instalado: v{0} → Disponível: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>Última atualização</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Tendências</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Maior número de assinantes</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Suprimir a verificação de versão para este mod</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>O emblema de atualização (!) foi suprimido para esse mod.
+Você pode limpar isso em Configurações.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Verificações de atualização suprimidas</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Abrir a página do mod.io</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Salvar</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' salvo. O backup da versão anterior foi feito como '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Salvar a seleção de mod atual em "{0}".
+O backup da versão anterior é feito automaticamente.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Limpar tudo</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(Clique com o botão direito do mouse para suprimir)</Text>
+  </Text>
 </Texts>

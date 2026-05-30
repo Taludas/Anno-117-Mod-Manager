@@ -41,6 +41,23 @@ except ImportError:
     HAS_DND = False
 
 
+def _fmt_num(v):
+    """Format a number for slider display: comma-separated integers or compact sci-notation (e.g. 2.4e5)."""
+    v = float(v)
+    is_int = (v == int(v))
+    abs_v = abs(v)
+    if abs_v >= 10000:
+        import math as _math
+        exp = int(_math.floor(_math.log10(abs_v))) if abs_v > 0 else 0
+        mant = v / (10 ** exp)
+        mant_str = f"{mant:.2f}".rstrip('0').rstrip('.')
+        return f"{mant_str}e{exp}"
+    elif is_int:
+        return f"{int(v):,}"
+    else:
+        return f"{v:g}"
+
+
 class ValueSlider(tk.Canvas):
     """A Canvas-based slider that displays the current value inside the thumb, matching the style shown in the UI mockup (min ──[value]── max)."""
 
@@ -107,7 +124,7 @@ class ValueSlider(tk.Canvas):
         self._round_rect(tx - tw//2, ty - th//2, tx + tw//2, ty + th//2, r=5, fill=self.THUMB_COL, outline="")
         self._round_rect(tx - tw//2, ty - th//2, tx + tw//2, ty + th//2, r=5, fill="", outline=self.THUMB_OUT, width=2)
         # Value label inside thumb
-        label = f"{self._value:g}"
+        label = _fmt_num(self._value)
         self.create_text(tx, ty, text=label, fill=self.TEXT_COL, font=FONT_SMALL)
 
     def _round_rect(self, x0, y0, x1, y1, r=6, fill="", outline="", width=1):
@@ -277,6 +294,35 @@ def load_icon(key: str, size: tuple = (16, 16)):
         return photo
     except Exception as e:
         print(f"[Icon] Failed to load '{key}': {e}")
+        return None
+
+def load_icon_tinted(key: str, size: tuple, hex_color: str):
+    """Returns a PhotoImage with all visible pixels recolored to hex_color. Alpha channel is preserved."""
+    cache_key = (key, size, hex_color)
+    if cache_key in _icon_cache:
+        return _icon_cache[cache_key]
+    rel_path = ICONS.get(key)
+    if not rel_path:
+        return None
+    abs_path = resource_path(rel_path)
+    if not os.path.exists(abs_path):
+        return None
+    try:
+        r = int(hex_color[1:3], 16)
+        g = int(hex_color[3:5], 16)
+        b = int(hex_color[5:7], 16)
+        img = Image.open(abs_path).convert("RGBA").resize(size, Image.Resampling.LANCZOS)
+        pixels = img.load()
+        for px in range(img.width):
+            for py in range(img.height):
+                _, _, _, a = pixels[px, py]
+                if a > 0:
+                    pixels[px, py] = (r, g, b, a)
+        photo = ImageTk.PhotoImage(img)
+        _icon_cache[cache_key] = photo
+        return photo
+    except Exception as e:
+        print(f"[Icon] Failed to tint '{key}': {e}")
         return None
 
 # --- Fonts ---
@@ -470,6 +516,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._endorsement_states = {}
         self._modio_update_available: set = set() # local mod IDs with a newer version on mod.io
         self._modio_update_versions   = {}  # local_id → (local_ver, remote_ver)
+        self._modio_profile_urls      = {}  # local_id → mod.io profile_url
         self._subscription_states = {}
         self._subscription_modio_map = {}
         self._collection_follow_states = {}
@@ -520,9 +567,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         """Returns a list of all logical drive letters (Windows) or mount points (Linux). On Windows queries the kernel bitmask; on Linux returns common mount roots."""
         if not IS_WINDOWS:
             # On Linux the game lives under Steam/Proton, /home, or external mounts.
-            # We deliberately do NOT include '/' here — globbing the root traverses /proc and /sys
-            # symlinks (e.g. /proc/<pid>/cwd) which produce phantom paths like //proc/123/cwd/...
-            # that KIO/xdg-open then mis-parse as smb:// URLs.
+            # We deliberately do NOT include '/' here — globbing the root traverses /proc and /sys symlinks (e.g. /proc/<pid>/cwd) which produce phantom paths like //proc/123/cwd/... that KIO/xdg-open then mis-parse as smb:// URLs.
             candidates = []
             for entry in ['/home', '/mnt', '/media', '/run/media', '/opt']:
                 if os.path.isdir(entry):
@@ -579,10 +624,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if os.path.isdir(compat):
                     try:
                         for appid in os.listdir(compat):
-                            ubi = os.path.join(compat, appid, 'pfx', 'drive_c',
-                                               'Program Files (x86)', 'Ubisoft',
-                                               'Ubisoft Game Launcher', 'games',
-                                               'Anno 117 - Pax Romana')
+                            ubi = os.path.join(compat, appid, 'pfx', 'drive_c', 'Program Files (x86)', 'Ubisoft', 'Ubisoft Game Launcher', 'games', 'Anno 117 - Pax Romana')
                             possible_roots.append(ubi)
                     except OSError:
                         pass
@@ -1137,6 +1179,26 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             except Exception as e:
                 self._imperial_alert(T(1999101189), T(1999101385, e), is_error=True)
 
+    def save_preset_inplace(self):
+        """Overwrites the currently loaded named preset in-place, backing up the previous version to <name>.bak.txt first."""
+        if not os.path.exists(self.active_profile_path):
+            self._imperial_alert(T(1999101189), T(1999101222), is_error=True)
+            return
+        name = self.current_profile_name
+        file_path   = os.path.join(self.presets_dir, f"{name}.txt")
+        backup_path = os.path.join(self.presets_dir, f"{name}.bak.txt")
+        try:
+            if os.path.exists(file_path):
+                import shutil
+                shutil.copy2(file_path, backup_path)
+            self._write_clean_preset(self.active_profile_path, file_path)
+            self.refresh_presets_list()
+            self.save_settings()
+            self.render_activation_tab()
+            self._imperial_alert(T(1999101280), T(1999101493, name))
+        except Exception as e:
+            self._imperial_alert(T(1999101189), T(1999101385, e), is_error=True)
+
     def _write_clean_preset(self, source_path, dest_path):
         """Write a copy of the profile with '# not installed' lines stripped. Saves the active/disabled state of installed mods only."""
         clean_lines = []
@@ -1230,8 +1292,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if not os.path.exists(self.presets_dir):
             os.makedirs(self.presets_dir, exist_ok=True)
 
-        # Get all files except we reserve "Default"
-        files = [f.replace(".txt", "") for f in os.listdir(self.presets_dir) if f.endswith(".txt") and f.lower() != "default"]
+        # Get all files except we reserve "Default" and .bak.txt backups
+        files = [f.replace(".txt", "") for f in os.listdir(self.presets_dir)
+                 if f.endswith(".txt") and not f.endswith(".bak.txt") and f.lower() != "default"]
 
         self.available_presets = ["Vanilla", "Default"] + sorted(files)
 
@@ -1699,6 +1762,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.grid_columnconfigure(2, weight=0, minsize=0)
 
         self._news_images = []
+        self.unbind_all("<MouseWheel>")
         for widget in self.main_content.winfo_children():
             widget.destroy()
 
@@ -2035,6 +2099,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         try:
             headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
             updated = set()
+            ignored = set(self.settings.get("version_check_ignored", []))
             # Build reverse map: modio_id → local_mod_id
             reverse_map = {v: k for k, v in self._subscription_modio_map.items()}
             # Fetch latest info for subscribed mods in one call
@@ -2046,6 +2111,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 modio_id = str(mod.get('id', ''))
                 local_id = reverse_map.get(modio_id)
                 if not local_id:
+                    continue
+                purl = mod.get('profile_url', '')
+                if purl:
+                    self._modio_profile_urls[local_id] = purl
+                if local_id in ignored:
                     continue
                 remote_ver = (mod.get('modfile') or {}).get('version', '')
                 if not remote_ver:
@@ -2066,6 +2136,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.after(0, lambda: self.render_activation_tab() if self.current_tab == "Mod Activation" else None)
         except Exception as e:
             print(f"[update check] failed: {e}")
+
+    def _suppress_version_check(self, mod_id, mod_name):
+        """Permanently suppresses the update badge (!) for a mod whose version strings never match."""
+        ignored = set(self.settings.get("version_check_ignored", []))
+        ignored.add(mod_id)
+        self.settings["version_check_ignored"] = list(ignored)
+        self.save_settings()
+        self._modio_update_available.discard(mod_id)
+        self._modio_update_versions.pop(mod_id, None)
+        if self.current_tab == "Mod Activation":
+            self.render_activation_tab()
+        self._imperial_alert(T(1999101490), f"{mod_name}\n\n{T(1999101489)}")
 
     def _fetch_reddit_worker(self, done_cb):
         """Fetches the latest posts from r/anno via Reddit's public JSON API."""
@@ -2128,14 +2210,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         finally:
             done_cb(items)
 
-    def _open_mod_in_browser(self, mod_id, mod_name):
+    def _open_mod_in_browser(self, mod_id):
         """Switches to the Mod Browser tab and locks the view to exactly this mod by ID."""
         self._browser_exact_id = mod_id
         self._browser_from_news = True
         self.switch_tab("Mod Browser")
-        # Update the search bar label after the tab has built its widgets
-        if hasattr(self, 'browser_search_var'):
-            self.browser_search_var.set(mod_name)
 
     def _fetch_exact_mod_worker(self, parent_frame, loading_lbl, mod_id):
         """Fetches a single mod by ID to ensure it is the ONLY one displayed."""
@@ -2263,9 +2342,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
             # Mod Browser shortcut button
             if item.get('mod_id'):
-                _mn = item.get('mod_name', item.get('title', ''))
                 _ico_oib = load_icon("open_in_browser", (14, 14))
-                btn_open = tk.Button(txt_frame, text=T(1999101163), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_GOLD, relief="raised", cursor="hand2", anchor="e", image=_ico_oib, compound="left" if _ico_oib else "none", command=lambda mid=item['mod_id'], mn=_mn: self._open_mod_in_browser(mid, mn))
+                btn_open = tk.Button(txt_frame, text=T(1999101163), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_GOLD, relief="raised", cursor="hand2", anchor="e", image=_ico_oib, compound="left" if _ico_oib else "none", command=lambda mid=item['mod_id']: self._open_mod_in_browser(mid))
                 if _ico_oib: btn_open.image = _ico_oib
                 btn_open.pack(anchor="e", pady=(6, 0))
                 self._bind_hover(btn_open, BG_MAIN, BG_HOVER)
@@ -2540,10 +2618,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.preset_combo.bind("<<ComboboxSelected>>", self.on_preset_dropdown_change)
 
         _ico_save = load_icon("save_preset", (22, 22))
-        btn_newpreset = tk.Button(preset_row, text=T(1999101183), font=FONT_XSMALL, bg="#2e7d32", fg=FG_MAIN, cursor="hand2", command=self.save_preset, relief="raised", padx=10, image=_ico_save, compound="left" if _ico_save else "none")
+        _is_named_preset = self.current_profile_name not in ("Vanilla", "Default")
+        _save_lbl = T(1999101492) if _is_named_preset else T(1999101183)
+        _save_cmd = self.save_preset_inplace if _is_named_preset else self.save_preset
+        btn_newpreset = tk.Button(preset_row, text=_save_lbl, font=FONT_XSMALL, bg="#2e7d32", fg=FG_MAIN, cursor="hand2", command=_save_cmd, relief="raised", padx=10, image=_ico_save, compound="left" if _ico_save else "none")
         if _ico_save: btn_newpreset.image = _ico_save
         btn_newpreset.pack(side="left", padx=2)
         self._bind_hover(btn_newpreset, "#2e7d32", "#36943a")
+        if _is_named_preset:
+            self._attach_tooltip(btn_newpreset, T(1999101494, self.current_profile_name))
 
         _ico_del = load_icon("delete_preset", (22, 22))
         btn_deletepreset = tk.Button(preset_row, text=T(1999101184), font=FONT_XSMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", command=self.delete_preset, relief="raised", padx=10, image=_ico_del, compound="left" if _ico_del else "none")
@@ -2839,6 +2922,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         def update_row_color(color):
             row.config(bg=color)
             for child in row.winfo_children():
+                if getattr(child, '_keep_bg', False):
+                    continue
                 if not isinstance(child, tk.Checkbutton):
                     child.config(bg=color)
                 else:
@@ -2855,8 +2940,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         def on_click(e=None):
             if hasattr(self, 'selected_row_frame') and self.selected_row_frame:
                 try:
-                    self.selected_row_frame.config(bg=row_bg, highlightbackground=row_bg)
-                    for child in self.selected_row_frame.winfo_children():
+                    prev = self.selected_row_frame
+                    prev.config(bg=row_bg, highlightbackground=row_bg)
+                    for child in prev.winfo_children():
+                        if getattr(child, '_keep_bg', False):
+                            continue
                         if not isinstance(child, tk.Checkbutton):
                             child.config(bg=row_bg)
                         else:
@@ -2924,15 +3012,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             indent_lbl.bind("<Enter>", on_enter)
             indent_lbl.bind("<Leave>", on_leave)
 
-        if current_mod.get('category'):
-            cat_text = current_mod.get('category', '')
-            cat_lbl = tk.Label(row, text=cat_text, font=FONT_BOLD_SMALL, bg=row_bg, fg=FG_MAIN, width=8, anchor="w")
-            cat_lbl.pack(side="left", padx=(0, 0))
+        cat_text = current_mod.get('category', '')
+        cat_lbl = tk.Label(row, text=cat_text, font=FONT_BOLD_SMALL, bg=row_bg, fg=FG_MAIN, width=8, anchor="w")
+        cat_lbl.pack(side="left", padx=(0, 0))
+        if cat_text:
             cat_lbl.bind("<Enter>", on_enter)
             cat_lbl.bind("<Leave>", on_leave)
             cat_lbl.bind("<Button-1>", on_click)
 
-        has_tweaks   = current_mod['id'] in getattr(self, 'active_options_cache', {})
+        has_options_raw = current_mod.get('has_options', False)
+        is_tweaked   = current_mod['id'] in getattr(self, 'active_options_cache', {})
+        has_tweaks   = has_options_raw  # kept for any downstream references; means "has gear icon"
         has_conflict = bool(self._get_active_incompatible_conflicts(current_mod['id']))
         has_missing_dep = (is_active and not has_conflict and bool(self._get_missing_required_deps(current_mod['id'])))
         has_deprecated  = (is_active and not has_conflict and not has_missing_dep and self._is_deprecated_by_active(current_mod['id']))
@@ -2949,20 +3039,26 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             _iused[0] = True
             return p
 
-        # Gear (tweaks) — click selects row AND navigates to Tweaking tab
+        # Gear (tweaks) — gold when customised, light-blue when tweakable but not yet customised
         if has_tweaks:
-            _ico_gear = load_icon("customized", (16, 16))
+            if is_tweaked:
+                _ico_gear = load_icon("customized", (16, 16))
+                gear_fg   = FG_GOLD
+            else:
+                _ico_gear = load_icon_tinted("tweaking_shortcut", (16, 16), "#07C1D8")
+                gear_fg   = "#07C1D8"
             if _ico_gear:
                 gear_lbl = tk.Label(row, image=_ico_gear, bg=row_bg, cursor="hand2")
                 gear_lbl.image = _ico_gear
             else:
-                gear_lbl = tk.Label(row, text="⚙", font=FONT_XSMALL, bg=row_bg, fg=FG_DIM, cursor="hand2")
+                gear_lbl = tk.Label(row, text="⚙", font=FONT_XSMALL, bg=row_bg, fg=gear_fg, cursor="hand2")
             gear_lbl.pack(side="left", padx=(_pad(), 2))
             gear_lbl.bind("<Enter>", on_enter)
             gear_lbl.bind("<Leave>", on_leave)
             gear_lbl.bind("<Button-1>",
                 lambda e, m=current_mod: [on_click(),
                     self.switch_tab("Tweaking", select_id=m['id'])])
+            self._attach_tooltip(gear_lbl, T(1999101165))
 
         # Warning icons — informational only; no hand2 cursor, row-selection only
         if any_warning:
@@ -2984,14 +3080,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # mod.io badge + update "!" — click opens Mod Browser for this specific mod
         if is_modio_mod:
             _mid = self._subscription_modio_map.get(current_mod['id'])
-            def _go_browser(e, mid=_mid, mname=current_mod['name']):
+            def _go_browser(e, mid=_mid):
                 on_click()
                 if mid:
                     setattr(self, '_browser_exact_id', int(mid))
                     setattr(self, '_browser_from_news', True)
                 self.switch_tab("Mod Browser")
-                if hasattr(self, 'browser_search_var'):
-                    self.browser_search_var.set(mname)
             if has_update:
                 def _quick_update(e, mid=_mid, mn=current_mod['name'], lid=current_mod['id']):
                     on_click()
@@ -3011,13 +3105,26 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         # Remove from update set immediately so the badge disappears
                         self._modio_update_available.discard(lid)
                         threading.Thread(target=_fetch_and_install, daemon=True).start()
-                upd_lbl = tk.Label(row, text="!", font=FONT_BOLD_SMALL, bg=row_bg, fg=FG_GOLD, cursor="hand2")
-                upd_lbl.pack(side="left", padx=(_pad(), 1))
+                        # Re-check versions after install settles — badge reappears if versions still differ
+                        self.after(5000, lambda: threading.Thread(target=self._check_modio_version_updates, daemon=True).start())
+                upd_lbl = tk.Label(row, text=" ! ", font=FONT_BOLD_SMALL, bg=FG_GOLD, fg=BG_MAIN, cursor="hand2", relief="flat")
+                upd_lbl._keep_bg = True
+                upd_lbl.pack(side="left", padx=(_pad(), 2), ipadx=4)
                 upd_lbl.bind("<Enter>", on_enter)
                 upd_lbl.bind("<Leave>", on_leave)
                 upd_lbl.bind("<Button-1>", _quick_update)
+                def _suppress_menu(e, lid=current_mod['id'], mn=current_mod['name']):
+                    menu = tk.Menu(self, tearoff=0)
+                    menu.add_command(
+                        label=T(1999101488),
+                        command=lambda: self._suppress_version_check(lid, mn))
+                    try:
+                        menu.tk_popup(e.x_root, e.y_root)
+                    finally:
+                        menu.grab_release()
+                upd_lbl.bind("<Button-3>", _suppress_menu)
                 _lv, _rv = self._modio_update_versions.get(current_mod["id"], ("?", "?"))
-                _tip = f"{T(1999101484, _lv, _rv)}\n\n" + T(1999101479)
+                _tip = f"{T(1999101484, _lv, _rv)}\n\n{T(1999101479)}\n\n{T(1999101496)}"
                 self._attach_tooltip(upd_lbl, _tip)
             _ico_mb = load_icon("modio_mod", (14, 14))
             if _ico_mb:
@@ -3195,6 +3302,37 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         btn_openfolder.pack(side="left", padx=15)
         self._bind_hover(btn_openfolder, BG_MAIN, BG_HOVER)
         self._attach_tooltip(btn_openfolder, T(1999101255))
+
+        _modio_id_for_visit = self._subscription_modio_map.get(mod['id'])
+        if _modio_id_for_visit:
+            _ico_modio = load_icon("modio_mod", (24, 24))
+            def _open_modio_page(lid=mod['id'], mid=_modio_id_for_visit):
+                cached = getattr(self, '_modio_profile_urls', {}).get(lid)
+                if cached:
+                    webbrowser.open_new_tab(cached)
+                    return
+                def _fetch():
+                    try:
+                        headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+                        res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods", headers=headers,
+                                           params={'id': mid}, timeout=10)
+                        res.raise_for_status()
+                        data = res.json().get('data', [])
+                        if data:
+                            purl = data[0].get('profile_url', '')
+                            if purl:
+                                if not hasattr(self, '_modio_profile_urls'):
+                                    self._modio_profile_urls = {}
+                                self._modio_profile_urls[lid] = purl
+                                self.after(0, lambda u=purl: webbrowser.open_new_tab(u))
+                    except Exception as e:
+                        print(f"[mod.io] profile_url fetch failed: {e}")
+                threading.Thread(target=_fetch, daemon=True).start()
+            btn_modio = tk.Button(footer_btn_frame, text="" if _ico_modio else "🌐", font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="raised", cursor="hand2", padx=10, image=_ico_modio, compound="center" if _ico_modio else "none", command=_open_modio_page)
+            if _ico_modio: btn_modio.image = _ico_modio
+            btn_modio.pack(side="left", padx=(0, 0))
+            self._bind_hover(btn_modio, BG_MAIN, BG_HOVER)
+            self._attach_tooltip(btn_modio, T(1999101491))
 
         if not mod.get('parent_path'):
             modio_id = self._subscription_modio_map.get(mod['id'])
@@ -3717,6 +3855,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         widget.bind("<Enter>", _show, add="+")
         widget.bind("<Leave>", _hide, add="+")
         widget.bind("<ButtonPress>", _hide, add="+")
+        widget.bind("<Destroy>", _hide, add="+")
 
     def render_settings_tab(self):
         """Renders the Settings tab with a scrollable body."""
@@ -3982,6 +4121,30 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._bind_hover(connect_btn, "#2ecc71", "#36e780")
             self._attach_tooltip(connect_btn, T(1999101265))
 
+        # SUPPRESSED UPDATE CHECKS
+        ignored_ids = self.settings.get("version_check_ignored", [])
+        suppress_frame = tk.LabelFrame(_mc, text=T(1999101490), font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM, padx=15, pady=15)
+        suppress_frame.pack(fill="x", pady=10, padx=5)
+
+        if ignored_ids:
+            ignored_names = []
+            for iid in ignored_ids:
+                m = next((m for m in self.mods if m['id'] == iid), None)
+                ignored_names.append(m['name'] if m else iid)
+            tk.Label(suppress_frame, text="\n".join(f"  • {n}" for n in ignored_names), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM, justify="left").pack(anchor="w", pady=(0, 8))
+            btn_clr = tk.Button(suppress_frame, text=T(1999101495), font=FONT_SMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", relief="raised", padx=10, command=self._clear_version_check_ignored)
+            btn_clr.pack(anchor="w")
+            self._bind_hover(btn_clr, "#8b0000", "#AF0202")
+        else:
+            tk.Label(suppress_frame, text="—", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM).pack(anchor="w")
+
+
+    def _clear_version_check_ignored(self):
+        """Removes all suppressed-version-check entries and re-runs the update check."""
+        self.settings["version_check_ignored"] = []
+        self.save_settings()
+        threading.Thread(target=self._check_modio_version_updates, daemon=True).start()
+        self.render_settings_tab()
 
     def set_game_path_from_root(self, root_path):
         """Given an Anno 117 installation root directory, validates that Anno117.exe exists inside it and updates game_exe_path and all derived mod paths accordingly. Returns True on success."""
@@ -4818,6 +4981,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_entry.pack(side="left")
         search_entry.bind("<Return>", lambda e: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
 
+        _browser_auto_job = [None]
+        def _on_browser_search_type(*_):
+            if _browser_auto_job[0]:
+                self.after_cancel(_browser_auto_job[0])
+            if len(self.browser_search_var.get()) >= 3:
+                _browser_auto_job[0] = self.after(600, lambda: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
+        self.browser_search_var.trace_add("write", _on_browser_search_type)
+
         search_btn = tk.Button(search_bg, text="✕", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [setattr(self, 'browser_tag_filter', ''), self.browser_tag_var.set("All Tags"), self._clear_search()])
         search_btn.pack(side="left")
         self._bind_hover(search_btn, BG_SECTION, BG_HOVER)
@@ -4831,10 +5002,13 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # 2. Sort Dropdown
         self.browser_sort_options = {
             T(1999101432): "-downloads_total",
-            T(1999101433): "name",
-            T(1999101434): "-date_live",
+            T(1999101487): "-subscriber_total",
             T(1999101435): "-ratings_weighted_aggregate",
-            T(1999101436): "submitted_by"
+            T(1999101486): "-date_trending",
+            T(1999101434): "-date_live",
+            T(1999101485): "-date_updated",
+            T(1999101433): "name",
+            T(1999101436): "submitted_by",
         }
         self.browser_sort_var = tk.StringVar(value=T(1999101432))
         sort_menu = tk.OptionMenu(controls_frame, self.browser_sort_var, *self.browser_sort_options.keys(), command=lambda _: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
@@ -5907,7 +6081,6 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     # Only store mapping if not already present — run_install_logic sets it precisely via ModID; _store_modio_mapping uses fuzzy matching which can corrupt the map when two mods share tokens
                     if str(mod_id) not in self._subscription_modio_map.values():
                         self._store_modio_mapping(mod_id, mod_name)
-                    self._store_modio_mapping(mod_id, mod_name)
                     if install_area is not None:
                         self.after(0, lambda: self._apply_subscribed_state(install_area, dl_url, mod_name, mod_id))
                     # Map is now populated - refresh the right panel if the activation tab is still showing this mod so the button switches from Uninstall to Unsubscribe immediately.
@@ -6641,6 +6814,20 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.render_tweaking_tab()
             self._imperial_alert(T(1999101201), T(1999101245))
 
+    def _reset_single_option(self, mod_id, opt_key):
+        """Removes one saved option key so the next read falls back to the schema default."""
+        data = self._load_active_options()
+        if mod_id in data and opt_key in data[mod_id]:
+            del data[mod_id][opt_key]
+            if not data[mod_id]:
+                del data[mod_id]
+            self._save_active_options(data)
+            if hasattr(self, 'active_options_cache'):
+                self.active_options_cache.get(mod_id, {}).pop(opt_key, None)
+        mod = next((m for m in self.mods if m['id'] == mod_id), None)
+        if mod:
+            self._render_tweaking_right_panel(mod)
+
     def _reset_single_mod_options(self, mod):
         """Removes only the selected mod's configuration from the file."""
         msg = T(1999101361, mod['name'])
@@ -6887,7 +7074,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         header_frame = tk.Frame(self.right_panel, bg=BG_SECTION)
         header_frame.pack(fill="x", pady=10, padx=15)
 
-        btn_reset = tk.Button(header_frame, text=T(1999101115), font=FONT_XSMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", command=lambda: self._reset_single_mod_options(mod), relief="raised")
+        btn_reset = tk.Button(header_frame, text=T(1999101112), font=FONT_XSMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", command=lambda: self._reset_single_mod_options(mod), relief="raised")
         btn_reset.pack(side="right", anchor="ne", padx=(10, 0))
         self._bind_hover(btn_reset, "#8b0000", "#AF0202")
         self._attach_tooltip(btn_reset, T(1999101270))
@@ -6929,10 +7116,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             inner_padding.pack(fill="x", padx=15, pady=(8, 12))
 
             label_text = opt_details.get('label', opt_key)
-            tk.Label(inner_padding, text=label_text, font=FONT_BODY, bg=BG_SECTION, fg=FG_MAIN, wraplength=420, justify="left").pack(anchor="w", pady=(0, 5))
-
-            opt_type = opt_details.get('type', 'text').lower()
+            opt_type    = opt_details.get('type', 'text').lower()
             default_val = str(opt_details.get('default', ''))
+
+            opt_label_row = tk.Frame(inner_padding, bg=BG_SECTION)
+            opt_label_row.pack(fill="x", pady=(0, 5))
+            tk.Label(opt_label_row, text=label_text, font=FONT_BODY, bg=BG_SECTION, fg=FG_MAIN, wraplength=330, justify="left", anchor="w").pack(side="left", fill="x", expand=True)
+            btn_fld_rst = tk.Button(opt_label_row, text="↺", font=FONT_BODY, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", padx=6, command=lambda mid=mod['id'], key=opt_key: self._reset_single_option(mid, key))
+            btn_fld_rst.pack(side="right", padx=(6, 0))
+            self._bind_hover(btn_fld_rst, BG_MAIN, BG_HOVER)
+            self._attach_tooltip(btn_fld_rst, T(1999101115))
             current_val = str(mod_active_opts.get(opt_key, default_val))
 
             # 2. Input Box Area
@@ -6944,7 +7137,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             insight_lbl = tk.Label(inner_padding, text="", font=FONT_SMALL, bg=BG_SECTION, fg=FG_GOLD, justify="left", wraplength=400)
             _insight_row_ref = [None, None]  # [frame, last_text] — rebuild only when text changes
 
-            def update_insight(current_val, details=opt_details, lbl=insight_lbl):
+            # Capture per-iteration mutable state as default args to avoid the classic
+            # Python loop-closure bug where all iterations share the same late-binding variable.
+            def update_insight(current_val, details=opt_details, lbl=insight_lbl, _ref=_insight_row_ref, _ip=inner_padding, _ico=_ico_tweak_desc):
                 """Updates the sub-label based on the current selection."""
                 labels = details.get('labels', [])
                 vals = details.get('values', [])
@@ -6965,20 +7160,20 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if text.strip():
                     lbl.pack_forget()
                     # Only rebuild the row if the text has changed — avoids flickering on slider drag where the label stays the same
-                    if (_insight_row_ref[0] is None
-                            or not _insight_row_ref[0].winfo_exists()
-                            or _insight_row_ref[1] != text):
-                        if _insight_row_ref[0] and _insight_row_ref[0].winfo_exists():
-                            _insight_row_ref[0].destroy()
-                        insight_row = tk.Frame(inner_padding, bg=BG_SECTION)
+                    if (_ref[0] is None
+                            or not _ref[0].winfo_exists()
+                            or _ref[1] != text):
+                        if _ref[0] and _ref[0].winfo_exists():
+                            _ref[0].destroy()
+                        insight_row = tk.Frame(_ip, bg=BG_SECTION)
                         insight_row.pack(anchor="w", pady=(2, 0), padx=10, fill="x")
-                        _insight_row_ref[0] = insight_row
-                        _insight_row_ref[1] = text
-                        if _ico_tweak_desc:
-                            ico_lbl = tk.Label(insight_row, image=_ico_tweak_desc, bg=BG_SECTION)
-                            ico_lbl.image = _ico_tweak_desc
+                        _ref[0] = insight_row
+                        _ref[1] = text
+                        if _ico:
+                            ico_lbl = tk.Label(insight_row, image=_ico, bg=BG_SECTION)
+                            ico_lbl.image = _ico
                             ico_lbl.pack(side="left", anchor="w", padx=(0, 2))
-                        tk.Label(insight_row, text=text, font=FONT_SMALL, bg=BG_SECTION, fg=FG_GOLD, wraplength=300, justify="left").pack(side="left", anchor="nw")
+                        tk.Label(insight_row, text=text, font=FONT_SMALL, bg=BG_SECTION, fg=FG_GOLD, wraplength=360, justify="left", anchor="nw").pack(side="left", anchor="nw", fill="x", expand=True)
                 else:
                     lbl.pack_forget()
 
@@ -6989,10 +7184,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 combo = ttk.Combobox(inner_padding, textvariable=combo_var, values=values, state="readonly", font=FONT_SMALL, width=30)
                 combo.pack(anchor="w")
 
-                def make_combo_callback(k=opt_key, v=combo_var, l=insight_lbl):
+                def make_combo_callback(k=opt_key, v=combo_var, ui=update_insight):
                     return lambda e: [
                         self._save_single_option(mod['id'], k, v.get()),
-                        update_insight(v.get()) # Update the text immediately
+                        ui(v.get()),
                     ]
                 combo.bind("<<ComboboxSelected>>", make_combo_callback())
 
@@ -7014,17 +7209,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 sl_var = tk.DoubleVar(value=sl_init)
 
-                def make_slider_callback(k=opt_key, lbl=sl_var, step=sl_step):
+                def make_slider_callback(k=opt_key, lbl=sl_var, step=sl_step, ui=update_insight):
                     def _cb(raw):
                         stepped = round(round(float(raw) / step) * step, 10)
                         self._save_single_option(mod['id'], k, str(stepped))
-                        update_insight(str(stepped))
+                        ui(str(stepped))
                     return _cb
 
-                tk.Label(sl_frame, text=f"{sl_min:g}", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left", padx=(0, 6))
+                tk.Label(sl_frame, text=_fmt_num(sl_min), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left", padx=(0, 6))
                 slider = ValueSlider(sl_frame, from_=sl_min, to=sl_max, resolution=sl_step, initial=sl_init, width=280, command=make_slider_callback())
                 slider.pack(side="left")
-                tk.Label(sl_frame, text=f"{sl_max:g}", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left", padx=(6, 10))
+                tk.Label(sl_frame, text=_fmt_num(sl_max), font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left", padx=(6, 10))
 
             elif opt_type == "toggle":
                 is_on = current_val.lower() == "true"
@@ -7033,11 +7228,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 chk = tk.Checkbutton(inner_padding, text=str(is_on), variable=toggle_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_GOLD if is_on else FG_DIM, selectcolor=BG_MAIN, activebackground=BG_SECTION, cursor="hand2")
                 chk.pack(anchor="w")
 
-                def make_toggle_callback(k=opt_key, v=toggle_var, c=chk):
+                def make_toggle_callback(k=opt_key, v=toggle_var, c=chk, ui=update_insight):
                     return lambda: [
                         c.config(text=str(v.get()), fg=FG_GOLD if v.get() else FG_DIM),
                         self._save_single_option(mod['id'], k, "true" if v.get() else "false"),
-                        update_insight("true" if v.get() else "false") # Update text
+                        ui("true" if v.get() else "false"),
                     ]
                 chk.config(command=make_toggle_callback())
 
@@ -7049,10 +7244,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 entry = tk.Entry(input_frame, textvariable=entry_var, font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, insertbackground=FG_MAIN, relief="flat", width=25)
                 entry.pack(side="left", ipady=4)
 
-                def make_entry_callback(k=opt_key, v=entry_var):
+                def make_entry_callback(k=opt_key, v=entry_var, ui=update_insight):
                     return lambda e: [
                         self._save_single_option(mod['id'], k, v.get()),
-                        update_insight(v.get()) # Update text
+                        ui(v.get()),
                     ]
                 entry.bind("<FocusOut>", make_entry_callback())
                 entry.bind("<Return>", make_entry_callback())
@@ -7289,6 +7484,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_entry = tk.Entry(search_bg, textvariable=self.col_search_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, insertbackground=FG_MAIN, width=20, relief="flat")
         search_entry.pack(side="left")
         search_entry.bind("<Return>", lambda e: self._refresh_collections())
+
+        _col_auto_job = [None]
+        def _on_col_search_type(*_):
+            if _col_auto_job[0]:
+                self.after_cancel(_col_auto_job[0])
+            if len(self.col_search_var.get()) >= 3:
+                _col_auto_job[0] = self.after(600, self._refresh_collections)
+        self.col_search_var.trace_add("write", _on_col_search_type)
+
         tk.Button(search_bg, text="✕", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [self.col_search_var.set(""), self.col_tag_var.set("All Tags"), self._refresh_collections()]).pack(side="left")
 
         # Tag filter dropdown (populated async)
@@ -7404,12 +7608,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if not hasattr(self, 'col_tag_menu'):
                 return
             try:
+                if not self.col_tag_menu.winfo_exists():
+                    return
                 menu = self.col_tag_menu["menu"]
+                if menu is None:
+                    return
                 menu.delete(0, "end")
                 menu.add_command(label="All Tags", command=lambda: self.col_tag_var.set("All Tags"))
                 for tag in all_tags:
                     menu.add_command(label=tag, command=lambda t=tag: self.col_tag_var.set(t))
-            except tk.TclError:
+            except (tk.TclError, AttributeError):
                 pass
 
         self.after(0, _rebuild)

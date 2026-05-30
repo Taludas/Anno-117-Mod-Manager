@@ -1905,4 +1905,54 @@ Wybierz folder "Documents\Anno 117 - Pax Romana" w następnym oknie dialogowym.<
     <LineId>1999101484</LineId>
     <Text>Zainstalowany: v{0} → Dostępny: v{1}</Text>
   </Text>
+<Text>
+    <LineId>1999101485</LineId>
+    <Text>Ostatnia aktualizacja</Text>
+  </Text>
+  <Text>
+    <LineId>1999101486</LineId>
+    <Text>Trendy</Text>
+  </Text>
+  <Text>
+    <LineId>1999101487</LineId>
+    <Text>Najwięcej subskrybentów</Text>
+  </Text>
+  <Text>
+    <LineId>1999101488</LineId>
+    <Text>Wyłączenie sprawdzania wersji dla tego moda</Text>
+  </Text>
+  <Text>
+    <LineId>1999101489</LineId>
+    <Text>Odznaka aktualizacji (!) wyłączona dla tego moda.
+Można to usunąć w Ustawieniach.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101490</LineId>
+    <Text>Pominięte kontrole aktualizacji</Text>
+  </Text>
+  <Text>
+    <LineId>1999101491</LineId>
+    <Text>Otwórz stronę mod.io</Text>
+  </Text>
+  <Text>
+    <LineId>1999101492</LineId>
+    <Text>Zapisz</Text>
+  </Text>
+  <Text>
+    <LineId>1999101493</LineId>
+    <Text>'{0}' zapisane. Kopia zapasowa poprzedniej wersji jako '{0}.bak'.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101494</LineId>
+    <Text>Zapisz bieżący wybór modów do "{0}".
+Poprzednia wersja jest automatycznie archiwizowana.</Text>
+  </Text>
+  <Text>
+    <LineId>1999101495</LineId>
+    <Text>Wyczyść wszystko</Text>
+  </Text>
+<Text>
+    <LineId>1999101496</LineId>
+    <Text>(Kliknij prawym przyciskiem myszy, aby wyłączyć)</Text>
+  </Text>
 </Texts>
