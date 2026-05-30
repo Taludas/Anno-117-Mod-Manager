@@ -2,5 +2,5 @@ Pillow
 requests
 bs4
 beautifulsoup4
-tkinterdnd2
+tkinterdnd2-universal
 pyinstaller

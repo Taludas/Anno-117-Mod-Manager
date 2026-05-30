@@ -37,8 +37,11 @@ import _version
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
     HAS_DND = True
-except ImportError:
+except Exception:
     HAS_DND = False
+    DND_FILES = None
+    class TkinterDnD:
+        Tk = tk.Tk
 
 
 def _fmt_num(v):
@@ -2735,13 +2738,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             elif self.sort_cat_dir == 1:
                 cat_sort = cat_val
             else:
-                # Z-A: invert characters
-                cat_sort = "".join(chr(255 - ord(c)) for c in cat_val)
+                # Z-A: invert characters (0x10FFFF is the max Unicode code point,
+                # so the result is always a valid chr() argument regardless of script)
+                cat_sort = "".join(chr(0x10FFFF - ord(c)) for c in cat_val)
 
             # C. Name Weight
             name_val = str(m.get('name', '')).lower()
             if self.sort_name_dir == -1:
-                name_sort = "".join(chr(255 - ord(c)) for c in name_val)
+                name_sort = "".join(chr(0x10FFFF - ord(c)) for c in name_val)
             else:
                 name_sort = name_val
 

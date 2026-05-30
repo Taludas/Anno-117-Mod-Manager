@@ -1,5 +1,4 @@
 PACKAGE=anno117-modmanager
-EXENAME=Anno.117.Mod.Manager
 VENVNAME=tamm
 
 ##############################################################################
@@ -26,17 +25,16 @@ libs.quiet: requirements.txt
 	pip install -q -r requirements.txt
 
 libs.clean:
-	pip uninstall -r requirements.txt
+	pip uninstall -y -r requirements.txt
 
 
 # exe make targets ###########################
 exe: libs
-	pyinstaller --onefile --windowed --add-data "data;data" --icon="app_icon.ico" --version-file="file_version_info.txt" --name $(EXENAME) $(PACKAGE).py
+	pyinstaller --onefile --windowed --add-data "data;data" --icon="app_icon.ico" --version-file="file_version_info.txt" --name "Anno 117 Mod Manager" $(PACKAGE).py
 
 exe.clean:
 	-cmd /c rd /s /q build
 	-cmd /c rd /s /q dist
-	-cmd /c del /q $(EXENAME).spec
 
 
 # general make targets ###########################
