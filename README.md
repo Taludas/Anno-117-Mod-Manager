@@ -168,7 +168,7 @@ The primary tab for managing which mods are active when you launch the game.
   | ... (orange three dots) | A required dependency is not installed |
   | ⏳️ (orange hourglass) | This mod is deprecated by another active mod |
   | ⚙ (teal mod.io logo) | Mod was installed via mod.io — **clicking opens that mod in the Mod Browser** |
-  | **!** (gold, before ⚙) | There is a mismatch in version numbers between the currently installed local version of the mod and the newest version available on mod.io! Click to directly update the mod with the newest version from mod.io. (WARNING: this requires mod authors to accurately supply matching version numbers across the modinfo.json file and the mod.io description - there are mods out there that do not follow this standard; those will therefore always show the "!", no matter what you do.) — **clicking directly starts the update download** |
+  | **!** (gold, before ⚙) | The version number in the mod's local `modinfo.json` does not match the version listed on mod.io. **Left-click** directly starts the update download. **Right-click** opens a menu to permanently suppress the badge for this mod — useful when a mod author does not keep the version number in `modinfo.json` in sync with the version on mod.io, causing a permanent false positive. Suppressed mods are listed in Settings → Suppressed Update Checks and can be cleared there at any time. |
 
 - Mod names are coloured **red** for conflicts, **orange** for missing dependencies or deprecation.
 - Sub-mods (child folders inside a mod) appear indented below their parent and cannot be uninstalled on their own.
@@ -192,6 +192,7 @@ Clicking any mod opens its detail panel on the right:
 - **Known Issues** section if the mod lists any.
 - Folder path and file size on disk.
 - **Open Folder** - opens the mod's directory in Explorer / file manager.
+- **Open mod.io page** *(mod.io mods only)* - opens the mod's mod.io page in your browser.
 - **↻ Reinstall** *(mod.io mods only)* - fetches the latest version from mod.io and reinstalls it (useful for updates). Appears to the left of the Unsubscribe button.
 - **Uninstall Mod** - deletes the local files after confirmation. Warns if other active mods depend on it.
 - **Unsubscribe** *(mod.io mods only)* - removes the mod.io subscription and uninstalls. Warns if other active mods depend on it.
@@ -203,6 +204,7 @@ Presets save and restore your full activation state (which mods are on or off).
 - The **Active Profile** dropdown at the top lists all saved presets plus two built-in system presets:
   - **Vanilla** — deactivates every installed mod in one click. Cannot be deleted.
   - **Default** — activates every installed mod. Cannot be deleted.
+- **Save** - saves the current state back into the active preset in-place. The previous version is automatically backed up as `<name>.bak`. Only shown when a named preset is active.
 - **Save As New** - saves the current state under a new name.
 - **Delete** - permanently removes the selected preset. System presets cannot be deleted.
 - Collection presets are created automatically when you follow a collection and are labelled *(Collection)*.
@@ -215,7 +217,7 @@ Browse and install mods directly from mod.io without leaving the app. Requires a
 
 #### Search & Filters
 
-- **Search bar** - full-text search against the mod.io catalogue.
+- **Search bar** - full-text search against the mod.io catalogue. Results trigger automatically after three characters.
 - **Sort** - Most Downloads, Alphabetical, Newest, Highest Rating, Author.
 - **Tag filter** - dropdown populated from the game's tag list on mod.io; filter by any single tag.
 - **Subscribed** toggle - show only mods you are currently subscribed to.
@@ -247,7 +249,7 @@ You can **endorse** a mod directly from its tile to give the creator a rating on
 
 Collections are curated sets of mods maintained by the community on mod.io.
 
-- **Search bar** and **Tag filter** work the same as in the Mod Browser.
+- **Search bar** - full-text search with automatic results after three characters. **Tag filter** works the same as in the Mod Browser.
 - **Followed** toggle shows only collections you have followed.
 - Clicking a tile opens a **detail popup** with the collection's description, tag list and full mod list (each mod is a clickable link to its mod.io page).
 
@@ -341,6 +343,10 @@ Choose where the app installs mods:
 - **API Key** - paste your personal API key from [mod.io → API Keys](https://mod.io/me/access). Required for the Mod Browser and Collections tabs.
 - **Connect / Disconnect** - authenticate via email or revoke your session.
 - Authentication uses a one-time email code flow and stores only a 1 year time-limited access token locally. No password is ever stored.
+
+#### Suppressed Update Checks
+
+Lists all mods for which the **!** update badge has been permanently suppressed via right-click. The **Clear All** button removes all suppressions and re-runs the version check immediately.
 
 #### Footer
 

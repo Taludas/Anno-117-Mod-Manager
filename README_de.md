@@ -165,7 +165,7 @@ Der primäre Tab zum Verwalten, welche Mods beim Spielstart aktiv sind.
   | ... (orangene drei Punkte) | Eine erforderliche Abhängigkeit ist nicht installiert |
   | ⏳️ (orangene Sanduhr) | Dieser Mod wurde durch einen anderen aktiven Mod ersetzt |
   | ⚙ (blaues mod.io logo) | Mod wurde aus dem Mod-Browser installiert — **Klick öffnet diesen Mod im Mod-Browser** |
-  | **!** (gold, vor ⚙) | Die Versionsnummern der aktuell installierten lokalen Version des Mods und der neuesten auf mod.io verfügbaren Version stimmen nicht überein! Klicke es an, um den Mod direkt mit der neuesten Version von mod.io zu aktualisieren. (WARNUNG: Dies setzt voraus, dass Mod-Autoren die Versionsnummern in der modinfo.json - Datei und in der Beschreibung auf mod.io immer genau aufeinander abstimmen – es gibt Mods, die diesen Standard nicht einhalten; bei diesen wird daher immer das „!“ angezeigt, egal was man tut.) — **Klick startet direkt den Update-Download** |
+  | **!** (gold, vor ⚙) | Die Versionsnummer in der lokalen `modinfo.json` des Mods stimmt nicht mit der auf mod.io angegebenen Version überein. **Linksklick** startet direkt den Update-Download. **Rechtsklick** öffnet ein Menü, um das Badge für diesen Mod dauerhaft zu unterdrücken – nützlich, wenn ein Mod-Autor die Versionsnummer in der `modinfo.json` nicht mit der Version auf mod.io synchronisiert hält und dadurch ein dauerhafter Fehlalarm entsteht. Unterdrückte Mods werden in den Einstellungen unter „Unterdrückte Update-Prüfungen” aufgelistet und können dort jederzeit zurückgesetzt werden. |
 
 - Mod-Namen werden **rot** für Konflikte und **orange** für fehlende Abhängigkeiten oder Ersetzungen angezeigt.
 - Sub-Mods (Unterordner innerhalb eines Mods) erscheinen eingerückt unter ihrem übergeordneten Mod und können nicht einzeln deinstalliert werden.
@@ -189,6 +189,7 @@ Ein Klick auf einen Mod öffnet sein Detailpanel auf der rechten Seite:
 - **Bekannte Probleme**-Bereich, wenn der Mod welche auflistet.
 - Ordnerpfad und Dateigröße auf der Festplatte.
 - **Ordner öffnen** – öffnet das Verzeichnis des Mods im Explorer / Dateimanager.
+- **mod.io-Seite öffnen** *(nur mod.io-Mods)* – öffnet die mod.io-Seite des Mods im Browser.
 - **↻ Neu installieren** *(nur mod.io-Mods)* – lädt die neueste Version von mod.io herunter und installiert sie neu. Erscheint links neben der Abonnement-beenden-Schaltfläche.
 - **Mod deinstallieren** – löscht die lokalen Dateien nach Bestätigung. Warnt, wenn andere aktive Mods davon abhängen.
 - **Abonnement beenden** *(nur mod.io-Mods)* – entfernt das mod.io-Abonnement und deinstalliert den Mod. Warnt, wenn andere aktive Mods davon abhängen.
@@ -200,6 +201,7 @@ Presets speichern und stellen deinen vollständigen Aktivierungsstatus wieder he
 - Das **Aktives Profil**-Dropdown oben listet alle gespeicherten Presets sowie zwei integrierte System-Presets auf:
   - **Keine Mods aktiv** — deaktiviert jeden installierten Mod mit einem Klick. Kann nicht gelöscht werden.
   - **Standard** — aktiviert jeden installierten Mod. Kann nicht gelöscht werden.
+- **Speichern** – speichert den aktuellen Status direkt in das aktive Preset zurück. Die vorherige Version wird automatisch als `<Name>.bak` gesichert. Wird nur angezeigt, wenn ein benanntes Preset aktiv ist.
 - **Als neu speichern** – speichert den aktuellen Status unter einem neuen Namen.
 - **Löschen** – entfernt das ausgewählte Preset dauerhaft. System-Presets können nicht gelöscht werden.
 - Kollektions-Presets werden automatisch erstellt, wenn du einer Kollektion folgst, und sind mit *(Kollektion)* gekennzeichnet.
@@ -212,7 +214,7 @@ Stöbere und installiere Mods direkt von mod.io, ohne die App zu verlassen. Erfo
 
 #### Suche & Filter
 
-- **Suchleiste** – Volltextsuche im mod.io-Katalog.
+- **Suchleiste** – Volltextsuche im mod.io-Katalog. Ergebnisse werden ab drei Zeichen automatisch aktualisiert.
 - **Sortierung** – Meiste Downloads, Alphabetisch, Neueste, Höchste Bewertung, Autor.
 - **Tag-Filter** – Dropdown mit der Tag-Liste des Spiels von mod.io; nach einem einzelnen Tag filtern.
 - **Abonniert**-Schalter – zeigt nur Mods an, die du aktuell abonniert hast.
@@ -244,7 +246,7 @@ Du kannst einen Mod direkt von seiner Kachel aus **bewerten**, um dem Ersteller 
 
 Sammlungen sind kuratierte Mod-Kolektionen, die von der Community auf mod.io gepflegt werden.
 
-- **Suchleiste** und **Tag-Filter** funktionieren genauso wie im Mod-Browser.
+- **Suchleiste** – Volltextsuche mit automatischen Ergebnissen ab drei Zeichen. Der **Tag-Filter** funktioniert genauso wie im Mod-Browser.
 - Der **Gefolgt**-Schalter zeigt nur Sammlungen an, denen du folgst.
 - Ein Klick auf eine Kachel öffnet ein **Detail-Popup** mit der Beschreibung der Sammlung, Tag-Liste und vollständiger Mod-Liste (jeder Mod ist ein anklickbarer Link zu seiner mod.io-Seite).
 
@@ -338,6 +340,10 @@ Wähle, wo die App Mods installiert:
 - **API-Schlüssel** – füge deinen persönlichen API-Schlüssel von [mod.io → API-Schlüssel](https://mod.io/me/access) ein. Erforderlich für den Mod-Browser und den Kollektionen-Tab.
 - **Verbinden / Trennen** – authentifiziere dich per E-Mail oder widerrufe deine Sitzung.
 - Die Authentifizierung verwendet einen einmaligen E-Mail-Code-Flow und speichert einen 1-Jahr-gültiges Zugriffstoken lokal. Es wird nie ein Passwort gespeichert.
+
+#### Unterdrückte Update-Prüfungen
+
+Listet alle Mods auf, bei denen das **!**-Badge per Rechtsklick dauerhaft unterdrückt wurde. Die Schaltfläche **Alle löschen** entfernt alle Unterdrückungen und führt die Versionsprüfung sofort erneut aus.
 
 #### Fußzeile
 
