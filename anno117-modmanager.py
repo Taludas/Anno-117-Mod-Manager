@@ -806,6 +806,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
+    def _is_valid_mods_folder(self, path):
+        """A candidate mods folder is valid under either the multi-profile scheme (profile.txt / profiles/) or the legacy single-file scheme (active-profile.txt)."""
+        return (
+            os.path.exists(os.path.join(path, "profile.txt"))
+            or os.path.isdir(os.path.join(path, "profiles"))
+            or os.path.exists(os.path.join(path, "active-profile.txt"))
+        )
+
     def _find_or_prompt_docs_folder(self):
         """Searches all available drives for the Documents/Anno 117 - Pax Romana mods folder. If found automatically, stores it; otherwise prompts the user to locate it."""
         import glob as _glob
@@ -818,8 +826,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         for drive in drives:
             for pat in patterns:
                 for match in _glob.glob(os.path.join(drive + os.sep, pat)):
-                    profile = os.path.join(match, "active-profile.txt")
-                    if os.path.exists(profile):
+                    if self._is_valid_mods_folder(match):
                         # match is the /mods folder — step up to "Anno 117 - Pax Romana"
                         self.custom_docs_path = os.path.normpath(os.path.dirname(match))
                         self.update_mod_path_from_mode()
@@ -943,11 +950,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.enable_new_mods = not clean_line.startswith("#")
                     continue
 
+                # Skip metadata lines (e.g. "DisplayName Mod Profile") — real mod IDs never contain spaces
+                if self._is_display_name_line(clean_line.lstrip("#")):
+                    continue
+
                 is_uninstalled = "# not installed" in clean_line.lower()
                 is_active = not clean_line.startswith("#")
 
                 mod_id = clean_line.replace("#", "").replace("not installed", "").strip()
-                if mod_id:
+                if mod_id and " " not in mod_id:
                     mod_status_map[mod_id] = {
                         "active": is_active,
                         "uninstalled": is_uninstalled
@@ -1171,9 +1182,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         preset_name = result["name"]
 
         if preset_name:
-            file_path = os.path.join(self.presets_dir, f"{preset_name}.txt")
             try:
-                self._write_clean_preset(self.active_profile_path, file_path)
+                if self.uses_profiles_scheme:
+                    # "Save as" under the native scheme: the cleaned current state becomes
+                    # its own profile file and the game's active profile switches to it.
+                    clean_lines = self._read_clean_profile_lines(self.active_profile_path)
+                    self._activate_profile(preset_name, clean_lines)
+                else:
+                    file_path = os.path.join(self.presets_dir, f"{preset_name}.txt")
+                    self._write_clean_preset(self.active_profile_path, file_path)
                 self.current_profile_name = preset_name
                 self.refresh_presets_list()
                 self.save_settings()
@@ -1188,13 +1205,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._imperial_alert(T(1999101189), T(1999101222), is_error=True)
             return
         name = self.current_profile_name
-        file_path   = os.path.join(self.presets_dir, f"{name}.txt")
-        backup_path = os.path.join(self.presets_dir, f"{name}.bak.txt")
         try:
-            if os.path.exists(file_path):
-                import shutil
-                shutil.copy2(file_path, backup_path)
-            self._write_clean_preset(self.active_profile_path, file_path)
+            if self.uses_profiles_scheme:
+                # The active profile file *is* the named preset under the new scheme —
+                # clean it up in place instead of copying to a separate library file.
+                backup_path = self.active_profile_path + ".bak.txt"
+                shutil.copy2(self.active_profile_path, backup_path)
+                clean_lines = self._read_clean_profile_lines(self.active_profile_path)
+                clean_lines = self._insert_display_name(clean_lines, name)
+                with open(self.active_profile_path, 'w', encoding='utf-8') as f:
+                    f.writelines(clean_lines)
+            else:
+                file_path   = os.path.join(self.presets_dir, f"{name}.txt")
+                backup_path = os.path.join(self.presets_dir, f"{name}.bak.txt")
+                if os.path.exists(file_path):
+                    shutil.copy2(file_path, backup_path)
+                self._write_clean_preset(self.active_profile_path, file_path)
             self.refresh_presets_list()
             self.save_settings()
             self.render_activation_tab()
@@ -1202,23 +1228,38 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         except Exception as e:
             self._imperial_alert(T(1999101189), T(1999101385, e), is_error=True)
 
-    def _write_clean_preset(self, source_path, dest_path):
-        """Write a copy of the profile with '# not installed' lines stripped. Saves the active/disabled state of installed mods only."""
+    def _read_clean_profile_lines(self, source_path):
+        """Reads a profile file and returns its lines with '# not installed' entries stripped,
+        along with any existing 'DisplayName' line (and its following blank separator) — callers
+        that need a DisplayName re-add it themselves via _insert_display_name, since a name copied
+        from the source profile would otherwise be stale once saved under a different name."""
         clean_lines = []
+        skip_next_blank = False
         with open(source_path, 'r', encoding='utf-8') as f:
             for line in f:
                 stripped = line.strip()
+                if skip_next_blank:
+                    skip_next_blank = False
+                    if not stripped:
+                        continue
+                if self._is_display_name_line(stripped):
+                    skip_next_blank = True
+                    continue
                 if not stripped or stripped.startswith("##"):
                     clean_lines.append(line)
                     continue
                 if "# not installed" in stripped.lower():
                     continue
                 clean_lines.append(line)
-        with open(dest_path, 'w', encoding='utf-8') as f:
-            f.writelines(clean_lines)
+        return clean_lines
 
-    def _apply_preset_with_full_coverage(self, preset_path):
-        """Loads a preset file and writes active-profile.txt with explicit entries for every currently installed mod — active if listed in the preset, commented out otherwise. This prevents mods installed after the preset was saved from being implicitly active because they're absent from the file."""
+    def _write_clean_preset(self, source_path, dest_path):
+        """Write a copy of the profile with '# not installed' lines stripped. Saves the active/disabled state of installed mods only."""
+        with open(dest_path, 'w', encoding='utf-8') as f:
+            f.writelines(self._read_clean_profile_lines(source_path))
+
+    def _apply_preset_with_full_coverage(self, preset_path, profile_name):
+        """Loads a preset file and activates it with explicit entries for every currently installed mod — active if listed in the preset, commented out otherwise. This prevents mods installed after the preset was saved from being implicitly active because they're absent from the file. `profile_name` identifies the resulting profile under the native profiles/ scheme (ignored under the legacy single-file scheme)."""
         # Parse which mod IDs the preset activates
         preset_active = set()
         preset_disabled = set()
@@ -1259,8 +1300,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             else:
                 out_lines.append(f"# {mid}\n")
 
-        with open(self.active_profile_path, 'w', encoding='utf-8') as f:
-            f.writelines(out_lines)
+        self._activate_profile(profile_name, out_lines)
 
     def load_preset(self):
         """Opens a file-picker so the user can import an external preset file, backs up the current profile, applies the loaded preset and refreshes the activation tab."""
@@ -1271,14 +1311,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         if file_path:
             try:
+                preset_name = os.path.basename(file_path).replace(".txt", "")
+
                 # Create backup
                 if os.path.exists(self.active_profile_path):
                     backup_path = self.active_profile_path + ".bak"
                     shutil.copy2(self.active_profile_path, backup_path)
 
-                self._apply_preset_with_full_coverage(file_path)
+                self._apply_preset_with_full_coverage(file_path, preset_name)
 
-                preset_name = os.path.basename(file_path).replace(".txt", "")
                 self.current_profile_name = preset_name
                 self.save_settings()
 
@@ -1291,13 +1332,21 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self._imperial_alert(T(1999101208), T(1999101386, e), is_error=True)
 
     def refresh_presets_list(self):
-        """Scans the presets folder for .txt files."""
-        if not os.path.exists(self.presets_dir):
-            os.makedirs(self.presets_dir, exist_ok=True)
+        """Scans the preset library for .txt files — mods/profiles/ under the native multi-profile scheme, or the app's own %APPDATA% library otherwise."""
+        if getattr(self, "uses_profiles_scheme", False):
+            source_dir = self.profiles_dir
+            exclude = {self._quick_profile_slug("Default").lower(), self._quick_profile_slug("Vanilla").lower()}
+        else:
+            source_dir = self.presets_dir
+            exclude = {"default"}
 
-        # Get all files except we reserve "Default" and .bak.txt backups
-        files = [f.replace(".txt", "") for f in os.listdir(self.presets_dir)
-                 if f.endswith(".txt") and not f.endswith(".bak.txt") and f.lower() != "default"]
+        if not os.path.exists(source_dir):
+            os.makedirs(source_dir, exist_ok=True)
+
+        # Get all files except the reserved quick-profile slugs and .bak.txt backups
+        files = [f.replace(".txt", "") for f in os.listdir(source_dir)
+                 if f.endswith(".txt") and not f.endswith(".bak.txt")
+                 and f.replace(".txt", "").lower() not in exclude]
 
         self.available_presets = ["Vanilla", "Default"] + sorted(files)
 
@@ -1312,9 +1361,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.reset_to_default_profile()
             self._imperial_alert(T(1999101190), T(1999101223))
         else:
-            preset_path = os.path.join(self.presets_dir, f"{selection}.txt")
+            preset_dir = self.profiles_dir if self.uses_profiles_scheme else self.presets_dir
+            preset_path = os.path.join(preset_dir, f"{selection}.txt")
             if os.path.exists(preset_path):
-                self._apply_preset_with_full_coverage(preset_path)
+                self._apply_preset_with_full_coverage(preset_path, selection)
                 self.current_profile_name = selection
                 self._warn_missing_preset_mods(self.active_profile_path)
 
@@ -1325,15 +1375,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         """Force-activates all discovered mods in the active-profile.txt"""
         all_mods = self.get_all_mod_metadata()
         prefix = "" if self.enable_new_mods_var.get() in ("on", "keep") else "# "
-        lines = ["# Anno 117 Default Profile\n", f"{prefix}EnableNewMods\n"]
+        lines = ["## Anno 117 Default Profile\n", f"{prefix}EnableNewMods\n"]
 
         for mod in all_mods:
             # We skip sub-mods (nested folders) as the loader handles them via the parent or internal logic
             if not mod.get('parent_path'):
                 lines.append(f"{mod['id']}\n")
 
-        with open(self.active_profile_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
+        self._activate_profile(self._quick_profile_slug("Default"), lines)
 
         self.current_profile_name = "Default"
         self.save_settings()
@@ -1341,12 +1390,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def _reset_to_no_mods_profile(self):
         """Deactivates all mods by out-commenting every mod ID in active-profile.txt."""
         all_mods = self.get_all_mod_metadata()
-        lines = ["# Anno 117 No Mods Active Profile\n", "# EnableNewMods\n"]
+        lines = ["## Anno 117 No Mods Active Profile\n", "# EnableNewMods\n"]
         for mod in all_mods:
             if not mod.get('parent_path'):
                 lines.append(f"# {mod['id']}\n")
-        with open(self.active_profile_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
+        self._activate_profile(self._quick_profile_slug("Vanilla"), lines)
         self.current_profile_name = "Vanilla"
         self.save_settings()
 
@@ -1366,8 +1414,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         continue
                     if "EnableNewMods" in clean:
                         continue
+                    if self._is_display_name_line(clean):
+                        continue
                     mod_id = clean.split("#")[0].strip()
-                    if mod_id and mod_id not in installed_ids:
+                    if mod_id and " " not in mod_id and mod_id not in installed_ids:
                         missing.append(mod_id)
         except Exception as e:
             print(f"Failed to check preset for missing mods: {e}")
@@ -1389,7 +1439,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         if confirm:
             try:
-                file_path = os.path.join(self.presets_dir, f"{selection}.txt")
+                preset_dir = self.profiles_dir if self.uses_profiles_scheme else self.presets_dir
+                file_path = os.path.join(preset_dir, f"{selection}.txt")
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
@@ -2740,12 +2791,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             else:
                 # Z-A: invert characters (0x10FFFF is the max Unicode code point,
                 # so the result is always a valid chr() argument regardless of script)
-                cat_sort = "".join(chr(0x10FFFF - ord(c)) for c in cat_val)
+                cat_sort = tuple(-ord(c) for c in cat_val)
 
             # C. Name Weight
             name_val = str(m.get('name', '')).lower()
             if self.sort_name_dir == -1:
-                name_sort = "".join(chr(0x10FFFF - ord(c)) for c in name_val)
+                name_sort = tuple(-ord(c) for c in name_val)
             else:
                 name_sort = name_val
 
@@ -4203,7 +4254,31 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 user_docs = proton_docs or os.path.join(home, "Documents")
             docs_base = os.path.normpath(os.path.join(user_docs, "Anno 117 - Pax Romana", "mods"))
 
-        self.active_profile_path = os.path.join(docs_base, "active-profile.txt")
+        # Newer game versions store profiles as mods/profiles/<name>.txt, with the
+        # active one selected via an "ActiveProfile <name>" pointer in mods/profile.txt,
+        # instead of a single mods/active-profile.txt. Detect which scheme is in use.
+        self.profiles_dir = os.path.join(docs_base, "profiles")
+        self.profile_pointer_path = os.path.join(docs_base, "profile.txt")
+        legacy_active_path = os.path.join(docs_base, "active-profile.txt")
+
+        self.uses_profiles_scheme = (
+            os.path.exists(self.profile_pointer_path)
+            or os.path.isdir(self.profiles_dir)
+            or not os.path.exists(legacy_active_path)
+        )
+
+        if self.uses_profiles_scheme:
+            self._migrate_presets_to_profiles()
+            real_active_name = self._read_active_profile_name()
+            active_name = real_active_name or "default"
+            self.active_profile_path = os.path.join(self.profiles_dir, f"{active_name}.txt")
+            if real_active_name:
+                # Reflect whatever the game/loader currently has active — it may have
+                # changed outside the app (native profile switcher, manual edit, etc.)
+                self.current_profile_name = self._label_for_profile_slug(real_active_name)
+        else:
+            self.active_profile_path = legacy_active_path
+
         self.log_path = os.path.join(docs_base, "mod-loader.log")
         self.options_path = os.path.join(docs_base, "active-options.jsonc")
 
@@ -4216,12 +4291,151 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             else:
                 self.mod_path = docs_base
 
-        for p in [docs_base, self.mod_path]:
+        dirs_to_ensure = [docs_base, self.mod_path]
+        if self.uses_profiles_scheme:
+            dirs_to_ensure.append(self.profiles_dir)
+        for p in dirs_to_ensure:
             if p and not os.path.exists(p):
                 try:
                     os.makedirs(p, exist_ok=True)
                 except Exception as e:
                     print(f"Could not create directory {p}: {e}")
+
+    def _read_active_profile_name(self):
+        """Reads the 'ActiveProfile <name>' pointer line from mods/profile.txt, if present."""
+        pointer_path = getattr(self, "profile_pointer_path", "")
+        if not pointer_path or not os.path.exists(pointer_path):
+            return None
+        try:
+            with open(pointer_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    if stripped.lower().startswith("activeprofile"):
+                        parts = stripped.split(None, 1)
+                        if len(parts) == 2:
+                            return parts[1].strip()
+        except Exception as e:
+            print(f"[profiles] Failed to read profile.txt: {e}")
+        return None
+
+    # The app's own quick "force everything on / off" profiles are given filenames distinct
+    # from the game's own auto-created "default" profile so they can never collide with it
+    # (Windows filesystems are case-insensitive, so e.g. "Default" and "default" are the same file).
+    _QUICK_PROFILE_SLUGS = {
+        "Default": "Anno 117 Default Profile",
+        "Vanilla": "Anno 117 No Mods Active Profile",
+    }
+
+    def _is_display_name_line(self, text):
+        """True if `text` is a 'DisplayName <name>' metadata line — matched as an exact keyword
+        (optionally followed by a value) rather than a bare prefix, so a real mod ID that happens
+        to start with the same letters (e.g. a hypothetical 'displayname-something' mod) is never
+        mistaken for it."""
+        lowered = text.strip().lower()
+        return lowered == "displayname" or lowered.startswith("displayname ")
+
+    def _quick_profile_slug(self, label):
+        """Maps a quick-profile UI label ("Default"/"Vanilla") to its on-disk profile name."""
+        return self._QUICK_PROFILE_SLUGS.get(label, label)
+
+    def _label_for_profile_slug(self, slug):
+        """Reverse of _quick_profile_slug — maps an on-disk profile name back to its UI label, if it is one of the app's quick profiles."""
+        for label, mapped_slug in self._QUICK_PROFILE_SLUGS.items():
+            if mapped_slug == slug:
+                return label
+        return slug
+
+    def _write_active_profile_pointer(self, name):
+        """Writes/updates the 'ActiveProfile <name>' pointer in mods/profile.txt, preserving any existing header comments."""
+        default_header = [
+            '## Change the value after "ActiveProfile " to configure which mod profile will be loaded by the game on startup.\n',
+            '## Example: "ActiveProfile default" will cause the game to read the profile located at "/profiles/default.txt"\n',
+        ]
+        lines = []
+        found = False
+        if os.path.exists(self.profile_pointer_path):
+            with open(self.profile_pointer_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip().lower().startswith("activeprofile"):
+                        lines.append(f"ActiveProfile {name}\n")
+                        found = True
+                    else:
+                        lines.append(line)
+        else:
+            lines = list(default_header)
+
+        if not found:
+            lines.append(f"ActiveProfile {name}\n")
+
+        os.makedirs(os.path.dirname(self.profile_pointer_path), exist_ok=True)
+        with open(self.profile_pointer_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+    def _insert_display_name(self, lines, name):
+        """Inserts a 'DisplayName <name>' line plus a blank separator directly after the
+        EnableNewMods line, matching the format the game itself writes for profiles (see
+        mods/profiles/default.txt). Assumes `lines` doesn't already contain a DisplayName
+        line — callers that copy an existing profile should strip it first (see
+        _read_clean_profile_lines) so a stale name never survives a save-as/rename."""
+        out = []
+        inserted = False
+        for line in lines:
+            out.append(line)
+            stripped = line.strip()
+            # Skip '##' comment lines — they may merely mention "EnableNewMods" in prose
+            # (see the header the game itself writes) rather than being the real directive.
+            if not inserted and not stripped.startswith("##") and "EnableNewMods" in stripped:
+                out.append(f"DisplayName {name}\n")
+                out.append("\n")
+                inserted = True
+        if not inserted:
+            out = [f"DisplayName {name}\n", "\n"] + out
+        return out
+
+    def _activate_profile(self, name, lines):
+        """Writes `lines` as the content of the profile named `name` and makes it the game's
+        active profile. Under the native profiles/ scheme this (re)writes mods/profiles/<name>.txt
+        (with a DisplayName entry matching `name` added) and repoints mods/profile.txt's
+        ActiveProfile line at it; under the legacy single-file scheme `name` is ignored and the
+        one active-profile.txt file is simply overwritten."""
+        if self.uses_profiles_scheme:
+            os.makedirs(self.profiles_dir, exist_ok=True)
+            target_path = os.path.join(self.profiles_dir, f"{name}.txt")
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.writelines(self._insert_display_name(lines, name))
+            self._write_active_profile_pointer(name)
+            self.active_profile_path = target_path
+        else:
+            with open(self.active_profile_path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+
+    def _migrate_presets_to_profiles(self):
+        """One-time migration: copies presets from the app's legacy %APPDATA%/presets library
+        into the game's own mods/profiles/ folder the first time the installed game version is
+        found to support native multi-profile switching. Never overwrites an existing file at
+        the destination, so a profile already created natively in-game always wins."""
+        if self.settings.get("profiles_migrated"):
+            return
+        self.settings["profiles_migrated"] = True
+        try:
+            if not os.path.isdir(self.presets_dir):
+                return
+            os.makedirs(self.profiles_dir, exist_ok=True)
+            for fname in os.listdir(self.presets_dir):
+                if not fname.endswith(".txt") or fname.endswith(".bak.txt"):
+                    continue
+                dest = os.path.join(self.profiles_dir, fname)
+                if os.path.exists(dest):
+                    continue
+                try:
+                    shutil.copy2(os.path.join(self.presets_dir, fname), dest)
+                    print(f"[profiles] Migrated preset '{fname}' to mods/profiles/")
+                except Exception as e:
+                    print(f"[profiles] Failed to migrate preset {fname}: {e}")
+        except Exception as e:
+            print(f"[profiles] Preset migration failed: {e}")
 
     def update_enable_new_mods_in_file(self):
         """Syncs the UI toggle with the active-profile.txt file."""
@@ -8407,7 +8621,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 safe_name    = "".join(
                     c for c in collection_name if c.isalnum() or c in (' ', '-', '_')).strip()
                 display_name = f"{safe_name} (Collection)"
-                preset_path  = os.path.join(self.presets_dir, f"{display_name}.txt")
+                preset_dir   = self.profiles_dir if self.uses_profiles_scheme else self.presets_dir
+                preset_path  = os.path.join(preset_dir, f"{display_name}.txt")
                 if os.path.exists(preset_path):
                     try:
                         os.remove(preset_path)
@@ -8540,7 +8755,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             # Load as active profile
             if os.path.exists(self.active_profile_path):
                 shutil.copy2(self.active_profile_path, self.active_profile_path + ".bak")
-            self._apply_preset_with_full_coverage(file_path)
+            self._apply_preset_with_full_coverage(file_path, display_name)
 
             self.current_profile_name = display_name
             self.refresh_presets_list()

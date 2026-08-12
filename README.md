@@ -199,7 +199,7 @@ Clicking any mod opens its detail panel on the right:
 
 #### Presets
 
-Presets save and restore your full activation state (which mods are on or off).
+Presets save and restore your full activation state (which mods are on or off). On updated game installs these are the game's own native mod profiles - see [Presets](#presets-1) below for details.
 
 - The **Active Profile** dropdown at the top lists all saved presets plus two built-in system presets:
   - **Vanilla** — deactivates every installed mod in one click. Cannot be deleted.
@@ -369,8 +369,8 @@ Files stored there:
 | File | Purpose |
 |---|---|
 | `settings.json` | All app settings |
-| `active-profile.txt` | Which mods are active (written to the mod folder) |
-| `presets/` | Saved activation presets |
+| `active-profile.txt` *(older game versions)* | Which mods are active - written to your mod folder, not here. Newer game versions use `profile.txt` + `profiles/` instead - see [Presets](#presets-1) |
+| `presets/` *(older game versions)* | Saved activation presets. Newer game versions store profiles directly in `mods/profiles/` instead |
 | `endorsements.json` | Locally cached endorsement states |
 | `subscriptions.json` | mod.io subscription list |
 | `subscription_map.json` | Maps local mod IDs to mod.io IDs |
@@ -381,7 +381,12 @@ Files stored there:
 
 ## Presets
 
-A preset is a snapshot of your activation state - every mod and whether it is on or off. They are stored as plain `.txt` files in the `presets/` folder and can be shared and imported or backed up manually - just go to the settings tab and open the config folder and copy/paste preset files in `presets/`.
+A preset is a snapshot of your activation state - every mod and whether it is on or off.
+
+Newer versions of Anno 117 introduced native multi-profile support in the mod loader: mod profiles live as individual files in `mods/profiles/`, and `mods/profile.txt` records which one is currently active. The mod manager has adopted this - every preset you save or load here **is** a real, switchable game profile, not just a copy the app keeps on the side. Picking a preset in the app is what determines which profile the game itself loads on next launch.
+
+- Preset files live in `profiles/` inside your configured mod folder (see [Mod Storage](#mod-storage)) and can be shared, backed up or edited manually just like before.
+- Each profile carries a `DisplayName` entry matching the name you gave it in the app, so it will also show up correctly in the game's own profile switcher once that ships.
 
 Two system presets are always available and cannot be deleted:
 
@@ -389,6 +394,8 @@ Two system presets are always available and cannot be deleted:
 - **Default** — activates every installed mod.
 
 When you follow a collection a preset named `<Collection Name> (Collection)` is created automatically.
+
+> **Still on an older game version?** If your install doesn't have the `mods/profiles/` folder yet, the app automatically falls back to the classic single `active-profile.txt` file and keeps named presets in its own `presets/` folder (see [Mod Storage Locations](#mod-storage-locations)) - nothing to configure, it works either way. The first time the app detects the newer format, any presets you already had saved are copied over automatically so nothing is lost.
 
 ---
 
@@ -438,7 +445,7 @@ Go to Settings → Game Files → Browse and point it at the game's installation
 If your Windows Documents folder has been relocated (e.g. to another drive), the app will search all drives automatically. If that fails, use the **Anno 117 Documents Folder (override)** field in Settings → Game Files to point it to your `Anno 117 - Pax Romana/mods` folder directly.
 
 **Mods are not loading in-game**
-Check your modloader log and also your active-profiles.txt in your `~/Documents/Anno 117 - Pax Romana/mods/` folder - if there is a **#** infront of the mod or a **# not installed** after it, the game does not load the mod. Check again in your Activation tab or ask on the Modding Discord for help.
+Check your modloader log and also your active profile in the `~/Documents/Anno 117 - Pax Romana/mods/` folder - either `active-profile.txt` directly, or, on newer game versions, the file that `mods/profile.txt` points to inside `mods/profiles/`. If there is a **#** in front of the mod or a **# not installed** after it, the game does not load the mod. Check again in your Activation tab or ask on the Modding Discord for help.
 
 **Mod Browser / Collections tab is greyed out**
 These tabs require a mod.io API key. Go to Settings → mod.io Integration, enter your key and connect your account. Sometimes mod.io API is down - then try again later or do a restart of the app.

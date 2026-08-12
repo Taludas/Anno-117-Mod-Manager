@@ -196,7 +196,7 @@ Ein Klick auf einen Mod öffnet sein Detailpanel auf der rechten Seite:
 
 #### Presets
 
-Presets speichern und stellen deinen vollständigen Aktivierungsstatus wieder her (welche Mods an oder aus sind).
+Presets speichern und stellen deinen vollständigen Aktivierungsstatus wieder her (welche Mods an oder aus sind). Auf aktualisierten Spielversionen sind das die spieleigenen, nativen Mod-Profile – Details siehe [Presets](#presets-1) weiter unten.
 
 - Das **Aktives Profil**-Dropdown oben listet alle gespeicherten Presets sowie zwei integrierte System-Presets auf:
   - **Keine Mods aktiv** — deaktiviert jeden installierten Mod mit einem Klick. Kann nicht gelöscht werden.
@@ -366,8 +366,8 @@ Dort gespeicherte Dateien:
 | Datei | Zweck |
 |---|---|
 | `settings.json` | Alle App-Einstellungen |
-| `active-profile.txt` | Welche Mods aktiv sind (in den Mod-Ordner geschrieben!) |
-| `presets/` | Gespeicherte Aktivierungs-Presets |
+| `active-profile.txt` *(ältere Spielversionen)* | Welche Mods aktiv sind – wird in deinen Mod-Ordner geschrieben, nicht hierher. Neuere Spielversionen verwenden stattdessen `profile.txt` + `profiles/` – siehe [Presets](#presets-1) |
+| `presets/` *(ältere Spielversionen)* | Gespeicherte Aktivierungs-Presets. Neuere Spielversionen speichern Profile direkt in `mods/profiles/` |
 | `endorsements.json` | Lokal zwischengespeicherte Bewertungsstatus |
 | `subscriptions.json` | mod.io-Abonnementliste |
 | `subscription_map.json` | Ordnet lokale Mod-IDs mod.io-IDs zu |
@@ -378,7 +378,12 @@ Dort gespeicherte Dateien:
 
 ## Presets
 
-Ein Preset ist ein Schnappschuss deines Aktivierungsstatus – jeder Mod und ob er an oder aus ist. Sie werden als einfache `.txt`-Dateien im `presets/`-Ordner gespeichert und können manuell geteilt, importiert oder gesichert werden – öffne einfach den Konfigurationsordner im Einstellungen-Tab und kopiere/füge Preset-Dateien in `presets/` ein.
+Ein Preset ist ein Schnappschuss deines Aktivierungsstatus – jeder Mod und ob er an oder aus ist.
+
+Neuere Versionen von Anno 117 haben native Unterstützung für mehrere Profile im Mod Loader eingeführt: Mod-Profile liegen als einzelne Dateien in `mods/profiles/`, und `mods/profile.txt` hält fest, welches davon gerade aktiv ist. Der Mod Manager wurde daran angepasst – jedes Preset, das du hier speicherst oder lädst, **ist** ein echtes, umschaltbares Spielprofil und keine Kopie, die die App nur nebenbei verwaltet. Die Auswahl eines Presets in der App bestimmt direkt, welches Profil das Spiel beim nächsten Start lädt.
+
+- Preset-Dateien liegen in `profiles/` innerhalb deines konfigurierten Mod-Ordners (siehe [Mod-Speicherort](#mod-speicherort)) und können wie bisher manuell geteilt, gesichert oder bearbeitet werden.
+- Jedes Profil erhält einen `DisplayName`-Eintrag passend zu dem Namen, den du ihm in der App gegeben hast, damit es später auch im spieleigenen Profilwechsler korrekt angezeigt wird, sobald dieser erscheint.
 
 Zwei System-Presets sind immer verfügbar und können nicht gelöscht werden:
 
@@ -386,6 +391,8 @@ Zwei System-Presets sind immer verfügbar und können nicht gelöscht werden:
 - **Standard** — aktiviert jeden installierten Mod.
 
 Wenn du einer Sammlung folgst, wird automatisch ein Preset namens `<Sammlungsname> (Sammlung)` erstellt.
+
+> **Noch auf einer älteren Spielversion?** Falls dein Mod-Ordner den Unterordner `mods/profiles/` noch nicht besitzt, greift die App automatisch auf die klassische einzelne Datei `active-profile.txt` zurück und speichert benannte Presets stattdessen in ihrem eigenen `presets/`-Ordner (siehe [Mod-Speicherorte](#mod-speicherorte)) – du musst nichts einstellen, es funktioniert in beiden Fällen automatisch. Sobald die App das neue Format erkennt, werden bereits gespeicherte Presets einmalig automatisch übernommen, damit nichts verloren geht.
 
 ---
 
@@ -436,7 +443,7 @@ Gehe zu Einstellungen → Spieldateien → Durchsuchen und zeige auf den Install
 Wenn dein Windows-Dokumentenordner an einen anderen Ort verschoben wurde (z.B. auf ein anderes Laufwerk), durchsucht die App automatisch alle Laufwerke. Wenn das fehlschlägt, nutze das Feld **Anno 117 Dokumentenordner (Override)** in Einstellungen → Spieldateien, um direkt auf deinen `Documents/Anno 117 - Pax Romana`-Ordner zu zeigen.
 
 **Mods werden im Spiel nicht geladen**
-Prüfe dein Modloader-Log und auch deine `active-profiles.txt` in deinem `~/Documents/Anno 117 - Pax Romana/mods/`-Ordner – wenn dort ein **#** vor dem Mod oder ein **# not installed** dahinter steht, lädt das Spiel den Mod nicht. Schau nochmal im Aktivierungs-Tab nach oder frage im Modding-Discord um Hilfe.
+Prüfe dein Modloader-Log und auch dein aktives Profil im `~/Documents/Anno 117 - Pax Romana/mods/`-Ordner – entweder direkt die `active-profile.txt`, oder, bei neueren Spielversionen, die Datei, auf die `mods/profile.txt` verweist, innerhalb von `mods/profiles/`. Wenn dort ein **#** vor dem Mod oder ein **# not installed** dahinter steht, lädt das Spiel den Mod nicht. Schau nochmal im Aktivierungs-Tab nach oder frage im Modding-Discord um Hilfe.
 
 **Der Mod-Browser / Kollektionen-Tab ist ausgegraut**
 Diese Tabs erfordern einen mod.io-API-Schlüssel. Gehe zu Einstellungen → mod.io-Integration, gib deinen Schlüssel ein und verbinde deinen Account. Manchmal ist die mod.io-API nicht erreichbar – versuche es dann später nochmal oder starte die App neu.
