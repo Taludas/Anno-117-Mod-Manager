@@ -72,9 +72,9 @@ Eine Desktop-Anwendung zur Verwaltung von Mods für **Anno 117: Pax Romana**. Si
 
 ### Windows - Eigenständige Executable
 
-1. Lade die neueste `Anno117ModManager.exe` von der [Releases](../../releases)-Seite herunter.
-2. Lege sie irgendwo ab – sie enthält alle Assets intern.
-3. Doppelklick zum Starten. Keine Installation nötig.
+1. Lade die neueste `Anno117ModManager.zip` von der [Releases](../../releases)-Seite herunter.
+2. Entpacke sie an einen beliebigen Ort – `Anno 117 Mod Manager.exe` und der danebenliegende `_internal`-Ordner gehören zusammen, also den entpackten Ordner intakt lassen.
+3. Doppelklick auf `Anno 117 Mod Manager.exe` zum Starten. Keine Installation nötig.
 
 ### Linux / Aus dem Quellcode
 
