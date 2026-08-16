@@ -1,0 +1,134 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: Anno117ModManager-windows-x64
+            binary_name: Anno 117 Mod Manager.exe
+            data_sep: ';'
+            extra_args: --icon=app_icon.ico --version-file=file_version_info.txt
+          # Build on Ubuntu 22.04 (glibc 2.35) so the resulting binary runs on
+          # most distros released in the last few years; building on the latest
+          # runner would tie users to a glibc almost no LTS distro ships yet.
+          - os: ubuntu-22.04
+            artifact_name: Anno117ModManager-linux-x64
+            binary_name: Anno 117 Mod Manager
+            data_sep: ':'
+            extra_args: ''
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Tkinter is not bundled with the system Python on Ubuntu, and tkdnd
+      # (the native dependency of tkinterdnd2) needs Tcl/Tk + libxss to be
+      # present at PyInstaller analysis time so it gets pulled into the bundle.
+      - name: Install Tcl/Tk system libraries (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev libxss1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          pyinstaller --onefile --windowed \
+            --add-data "data${{ matrix.data_sep }}data" \
+            --collect-all tkinterdnd2 \
+            --name "Anno 117 Mod Manager" \
+            ${{ matrix.extra_args }} \
+            anno117-modmanager.py
+
+      - name: Make Linux binary executable
+        if: runner.os == 'Linux'
+        run: chmod +x "dist/Anno 117 Mod Manager"
+
+      # CI artefacts (kept 5 days). The official downloads come from the
+      # Release steps below, but these let testers grab a build from any push.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.binary_name }}
+          retention-days: 5
+
+  # Tag push (vX.Y.Z) -> permanent release with both binaries attached.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/Anno117ModManager-windows-x64/*
+            artifacts/Anno117ModManager-linux-x64/*
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Push to main -> rolling "latest" prerelease pointing at the current commit.
+  # Lets testers grab the bleeding-edge build without waiting for a tagged release.
+  rolling-latest:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Update rolling latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n "s/^__VERSION__\s*=\s*['\"]\\([^'\"]*\\)['\"].*/\\1/p" _version.py)
+          gh release view latest --repo ${{ github.repository }} >/dev/null 2>&1 && \
+            gh release delete latest --yes --cleanup-tag || true
+          gh release create latest \
+            --title "Latest (v${VERSION})" \
+            --notes "Latest build from \`${{ github.sha }}\`. Unstable — for testing only." \
+            --prerelease \
+            "artifacts/Anno117ModManager-windows-x64/Anno 117 Mod Manager.exe" \
+            "artifacts/Anno117ModManager-linux-x64/Anno 117 Mod Manager"
