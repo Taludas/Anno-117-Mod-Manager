@@ -445,6 +445,9 @@ Wenn dein Windows-Dokumentenordner an einen anderen Ort verschoben wurde (z.B. a
 **Mods werden im Spiel nicht geladen**
 Prüfe dein Modloader-Log und auch dein aktives Profil im `~/Documents/Anno 117 - Pax Romana/mods/`-Ordner – entweder direkt die `active-profile.txt`, oder, bei neueren Spielversionen, die Datei, auf die `mods/profile.txt` verweist, innerhalb von `mods/profiles/`. Wenn dort ein **#** vor dem Mod oder ein **# not installed** dahinter steht, lädt das Spiel den Mod nicht. Schau nochmal im Aktivierungs-Tab nach oder frage im Modding-Discord um Hilfe.
 
+**Ein Mod erscheint überhaupt nicht in der Mod-Liste**
+Die App toleriert übliche Formatierungsprobleme in der `modinfo.json` eines Mods – nicht-UTF-8-Textkodierungen (z. B. bei Mods mit chinesischen Zeichen), eine UTF-8-Byte-Order-Mark und überzählige Kommas werden automatisch behandelt. Erscheint ein Mod trotzdem nicht, prüfe das Debug-Log unter Einstellungen → Debug-Log anzeigen nach einer Zeile, die mit „Error parsing" beginnt – sie nennt die genaue Datei und den JSON-Fehler, den du dem Mod-Autor melden oder einem GitHub-Issue beifügen kannst.
+
 **Der Mod-Browser / Kollektionen-Tab ist ausgegraut**
 Diese Tabs erfordern einen mod.io-API-Schlüssel. Gehe zu Einstellungen → mod.io-Integration, gib deinen Schlüssel ein und verbinde deinen Account. Manchmal ist die mod.io-API nicht erreichbar – versuche es dann später nochmal oder starte die App neu.
 

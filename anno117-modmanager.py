@@ -32,6 +32,7 @@ import time
 import io
 import html as html_lib
 import tempfile
+import xml.etree.ElementTree as ET
 import _version
 
 try:
@@ -1030,102 +1031,116 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         if target_file:
             try:
-                with open(target_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                content = self._read_text_file_robust(target_file)
+                content = self.strip_jsonc_comments(content)
+                data = json.loads(content)
 
-                    if target_file.endswith(".jsonc"):
-                        content = self.strip_jsonc_comments(content)
+                if not isinstance(data, dict):
+                    return
 
-                    data = json.loads(content)
+                m_id = data.get("ModID")
+                if not m_id: return
 
-                    if not isinstance(data, dict):
-                        return
+                # Map app language keys → modinfo.json language keys
+                _MODINFO_LANG_MAP = {
+                    "english": "English",
+                    "german": "German",
+                    "french": "French",
+                    "spanish": "Spanish",
+                    "italian": "Italian",
+                    "polish": "Polish",
+                    "russian": "Russian",
+                    "brazilian": "Portugese",
+                    "japanese": "Japanese",
+                    "korean": "Korean",
+                    "simplified_chinese": "Chinese",
+                    "traditional_chinese":"Taiwanese",
+                }
+                _app_lang = self.settings.get(
+                    _LANGUAGE_SETTINGS_KEY, _detect_lang())
+                _modinfo_lang = _MODINFO_LANG_MAP.get(_app_lang, "English")
 
-                    m_id = data.get("ModID")
-                    if not m_id: return
+                def get_localized(key, default=""):
+                    val = data.get(key)
+                    if isinstance(val, list):
+                        # KnownIssues is a list of dicts
+                        parts = []
+                        for entry in val:
+                            if isinstance(entry, dict):
+                                text = (entry.get(_modinfo_lang)
+                                        or entry.get("English")
+                                        or "")
+                                if text:
+                                    parts.append(text.strip())
+                        return "\n\n".join(parts) if parts else default
+                    if isinstance(val, dict):
+                        return (val.get(_modinfo_lang)
+                                or val.get("English")
+                                or default)
+                    elif isinstance(val, str):
+                        return val
+                    return default
 
-                    # Map app language keys → modinfo.json language keys
-                    _MODINFO_LANG_MAP = {
-                        "english": "English",
-                        "german": "German",
-                        "french": "French",
-                        "spanish": "Spanish",
-                        "italian": "Italian",
-                        "polish": "Polish",
-                        "russian": "Russian",
-                        "brazilian": "Portugese",
-                        "japanese": "Japanese",
-                        "korean": "Korean",
-                        "simplified_chinese": "Chinese",
-                        "traditional_chinese":"Taiwanese",
+                raw_category = get_localized("Category")
+                category_display = f"{raw_category} " if raw_category else ""
+
+                deps = data.get("Dependencies", {})
+                if not isinstance(deps, dict):
+                    deps = {}
+
+                mod_entry = {
+                    "id": m_id,
+                    "name": get_localized("ModName", get_localized("Name", m_id)),
+                    "category": category_display,
+                    "version": str(data.get("Version", "1.0.0")),
+                    "desc": get_localized("Description", "No description."),
+                    "known_issues": get_localized("KnownIssues", ""),
+                    "creator": data.get("CreatorName", ""),
+                    "contact": data.get("CreatorContact", ""),
+                    "has_options": "Options" in data,
+                    "path": path,
+                    "parent_path": parent_path,
+                    "manually_disabled": os.path.basename(path).startswith("-"),
+                    "setup": data.get("GameSetup", {}) if isinstance(data.get("GameSetup"), dict) else {},
+                    "diff": data.get("Difficulty", "Normal"),
+                    "deps": {
+                        "Require": data.get("Dependencies", {}).get("Require", []) if isinstance(data.get("Dependencies"), dict) else [],
+                        "Optional": data.get("Dependencies", {}).get("Optional", []) if isinstance(data.get("Dependencies"), dict) else [],
+                        "LoadAfter": data.get("Dependencies", {}).get("LoadAfter", []) if isinstance(data.get("Dependencies"), dict) else [],
+                        "Deprecate": data.get("Dependencies", {}).get("Deprecate", []) if isinstance(data.get("Dependencies"), dict) else [],
+                        "Incompatible": data.get("Dependencies", {}).get("Incompatible", []) if isinstance(data.get("Dependencies"), dict) else []
                     }
-                    _app_lang = self.settings.get(
-                        _LANGUAGE_SETTINGS_KEY, _detect_lang())
-                    _modinfo_lang = _MODINFO_LANG_MAP.get(_app_lang, "English")
+                }
+                mod_list.append(mod_entry)
 
-                    def get_localized(key, default=""):
-                        val = data.get(key)
-                        if isinstance(val, list):
-                            # KnownIssues is a list of dicts
-                            parts = []
-                            for entry in val:
-                                if isinstance(entry, dict):
-                                    text = (entry.get(_modinfo_lang)
-                                            or entry.get("English")
-                                            or "")
-                                    if text:
-                                        parts.append(text.strip())
-                            return "\n\n".join(parts) if parts else default
-                        if isinstance(val, dict):
-                            return (val.get(_modinfo_lang)
-                                    or val.get("English")
-                                    or default)
-                        elif isinstance(val, str):
-                            return val
-                        return default
-
-                    raw_category = get_localized("Category")
-                    category_display = f"{raw_category} " if raw_category else ""
-
-                    deps = data.get("Dependencies", {})
-                    if not isinstance(deps, dict):
-                        deps = {}
-
-                    mod_entry = {
-                        "id": m_id,
-                        "name": get_localized("ModName", get_localized("Name", m_id)),
-                        "category": category_display,
-                        "version": str(data.get("Version", "1.0.0")),
-                        "desc": get_localized("Description", "No description."),
-                        "known_issues": get_localized("KnownIssues", ""),
-                        "creator": data.get("CreatorName", ""),
-                        "contact": data.get("CreatorContact", ""),
-                        "has_options": "Options" in data,
-                        "path": path,
-                        "parent_path": parent_path,
-                        "manually_disabled": os.path.basename(path).startswith("-"),
-                        "setup": data.get("GameSetup", {}) if isinstance(data.get("GameSetup"), dict) else {},
-                        "diff": data.get("Difficulty", "Normal"),
-                        "deps": {
-                            "Require": data.get("Dependencies", {}).get("Require", []) if isinstance(data.get("Dependencies"), dict) else [],
-                            "Optional": data.get("Dependencies", {}).get("Optional", []) if isinstance(data.get("Dependencies"), dict) else [],
-                            "LoadAfter": data.get("Dependencies", {}).get("LoadAfter", []) if isinstance(data.get("Dependencies"), dict) else [],
-                            "Deprecate": data.get("Dependencies", {}).get("Deprecate", []) if isinstance(data.get("Dependencies"), dict) else [],
-                            "Incompatible": data.get("Dependencies", {}).get("Incompatible", []) if isinstance(data.get("Dependencies"), dict) else []
-                        }
-                    }
-                    mod_list.append(mod_entry)
-
-                    for sub in os.scandir(path):
-                        if sub.is_dir():
-                            self._scan_folder(sub.path, mod_list, parent_path=path)
+                for sub in os.scandir(path):
+                    if sub.is_dir():
+                        self._scan_folder(sub.path, mod_list, parent_path=path)
 
             except Exception as e:
                 print(f"Error parsing {target_file}: {e}")
 
+    def _read_text_file_robust(self, path):
+        """Reads a text file with a fallback encoding chain, so mods whose modinfo.json/.jsonc
+        was saved in a non-UTF-8 encoding (e.g. GBK/GB18030 or Big5 for Chinese, or a Windows
+        codepage for other languages) still load instead of being silently skipped over. Never
+        raises - the last resort replaces any still-undecodable bytes rather than failing."""
+        with open(path, 'rb') as f:
+            raw = f.read()
+        for enc in ("utf-8-sig", "gb18030", "big5", "cp1252"):
+            try:
+                return raw.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        return raw.decode("utf-8", errors="replace")
+
     def strip_jsonc_comments(self, text):
-        """Removes both block (/* … */) and line (//) comments from a JSONC string while leaving string literals untouched, returning valid JSON."""
-        pattern = r'("(?:\\.|[^\\"])*")|(/\*[\s\S]*?\*/)|(//.*)'
+        """Normalizes real-world modinfo.json/.jsonc text into strict JSON: strips // and
+        /* */ comments and removes trailing commas before a closing ] or }, without touching
+        the content of any string literal. Mod authors' hand-edited files routinely contain
+        both even in plain .json files, and the game's own mod loader tolerates it - so this
+        matches that leniency instead of us dropping the mod on a JSONDecodeError."""
+        pattern = r'("(?:\\.|[^\\"])*")|(/\*[\s\S]*?\*/)|(//.*)|(,(?=\s*[}\]]))'
         def replace(match):
             if match.group(1): return match.group(1)
             return ""
@@ -1529,12 +1544,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     info_path = os.path.join(final_destination, info_file)
                     if os.path.exists(info_path):
                         try:
-                            with open(info_path, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                if info_file.endswith(".jsonc"):
-                                    content = self.strip_jsonc_comments(content)
-                                info_data = json.loads(content)
-                                new_mod_id = info_data.get("ModID")
+                            content = self._read_text_file_robust(info_path)
+                            content = self.strip_jsonc_comments(content)
+                            info_data = json.loads(content)
+                            new_mod_id = info_data.get("ModID")
                         except:
                             pass
                         break
@@ -2204,13 +2217,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._imperial_alert(T(1999101490), f"{mod_name}\n\n{T(1999101489)}")
 
     def _fetch_reddit_worker(self, done_cb):
-        """Fetches the latest posts from r/anno via Reddit's public JSON API."""
+        """Fetches the latest posts from r/anno via Reddit's public RSS/Atom feed.
+
+        Reddit's JSON API (www.reddit.com/*.json) started returning a Cloudflare-level
+        403 for anonymous requests regardless of User-Agent. The *.rss endpoint is not
+        subject to that block, so we parse the Atom feed it returns instead."""
         items = []
         try:
-            url = "https://www.reddit.com/r/anno/new.json?limit=10"
+            url = "https://www.reddit.com/r/anno/new.rss?limit=10"
             headers = {
                 'User-Agent': 'Anno117ModManager/1.0 (Windows; mod manager app)',
-                'Accept': 'application/json'
+                'Accept': 'application/atom+xml'
             }
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code == 401:
@@ -2218,35 +2235,42 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 return
             res.raise_for_status()
 
-            posts = res.json().get('data', {}).get('children', [])
-            for post in posts:
-                d = post.get('data', {})
-                if d.get('stickied'):
-                    continue  # skip pinned mod posts
+            ns = {'atom': 'http://www.w3.org/2005/Atom', 'media': 'http://search.yahoo.com/mrss/'}
+            root = ET.fromstring(res.content)
+            for entry in root.findall('atom:entry', ns):
+                title = html.unescape((entry.findtext('atom:title', default='', namespaces=ns) or 'Unknown Post').strip())
 
-                title = html.unescape(d.get('title', 'Unknown Post'))
-                url_post = f"https://www.reddit.com{d.get('permalink', '')}"
-                ts = float(d.get('created_utc', 0))
-                dt = datetime.fromtimestamp(ts) if ts else datetime.now()
-                author = d.get('author', 'unknown')
-                score = d.get('score', 0)
-                excerpt = f"by u/{author}  ·  {score} upvotes"
-                selftext = html.unescape(d.get('selftext', ''))
-                if selftext:
-                    selftext = selftext[:140].replace('\n', ' ').strip()
-                    if len(d.get('selftext', '')) > 140:
-                        selftext += '...'
-                    excerpt += f"\n{selftext}"
+                link_el = entry.find('atom:link', ns)
+                url_post = link_el.get('href', '') if link_el is not None else ''
 
-                # Extract preview image - Reddit HTML-encodes the URL
-                img_url = None
+                author = (entry.findtext('atom:author/atom:name', default='', namespaces=ns) or '/u/unknown').strip()
+                author = author.removeprefix('/u/')
+
+                published = entry.findtext('atom:published', default='', namespaces=ns)
                 try:
-                    preview = d.get('preview', {}).get('images', [{}])[0]
-                    src = preview.get('source', {}).get('url', '')
-                    if src:
-                        img_url = html.unescape(src)
-                except Exception:
-                    pass
+                    dt = datetime.fromisoformat(published) if published else datetime.now()
+                except ValueError:
+                    dt = datetime.now()
+                ts = dt.timestamp()
+
+                excerpt = f"by u/{author}"
+                content_html = entry.findtext('atom:content', default='', namespaces=ns)
+                if content_html:
+                    body_text = BeautifulSoup(content_html, "html.parser").get_text(' ', strip=True)
+                    body_text = html.unescape(body_text)
+                    if body_text:
+                        body_text = body_text[:140].strip()
+                        if len(body_text) >= 140:
+                            body_text += '...'
+                        excerpt += f"\n{body_text}"
+
+                # Not every post has a thumbnail - only set img_url when the feed provides one
+                img_url = None
+                thumb_el = entry.find('media:thumbnail', ns)
+                if thumb_el is not None:
+                    src = thumb_el.get('url', '')
+                    if src.startswith('http'):
+                        img_url = src
 
                 items.append({
                     "title": title,
@@ -2702,7 +2726,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         tk.Label(search_row, text=T(1999101022), font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left")
 
-        # Search bar with embedded ✕ clear button - same pattern as Mod Browser
+        # Search bar with embedded × clear button - same pattern as Mod Browser
         search_bg = tk.Frame(search_row, bg=BG_MAIN, padx=5, pady=2)
         search_bg.pack(side="left", padx=5)
 
@@ -2710,7 +2734,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_entry = tk.Entry(search_bg, textvariable=search_var, font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, insertbackground=FG_MAIN, width=18, relief="flat")
         search_entry.pack(side="left")
 
-        btn_x = tk.Button(search_bg, text="✕", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: self.render_activation_tab(search_query=""))
+        btn_x = tk.Button(search_bg, text="×", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: self.render_activation_tab(search_query=""))
         btn_x.pack(side="left")
         self._bind_hover(btn_x, BG_MAIN, BG_HOVER)
         self._attach_tooltip(btn_x, T(1999101250))
@@ -5207,7 +5231,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 _browser_auto_job[0] = self.after(600, lambda: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
         self.browser_search_var.trace_add("write", _on_browser_search_type)
 
-        search_btn = tk.Button(search_bg, text="✕", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [setattr(self, 'browser_tag_filter', ''), self.browser_tag_var.set("All Tags"), self._clear_search()])
+        search_btn = tk.Button(search_bg, text="×", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [setattr(self, 'browser_tag_filter', ''), self.browser_tag_var.set("All Tags"), self._clear_search()])
         search_btn.pack(side="left")
         self._bind_hover(search_btn, BG_SECTION, BG_HOVER)
 
@@ -7005,12 +7029,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         if target:
             try:
-                with open(target, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if target.endswith(".jsonc"):
-                        content = self.strip_jsonc_comments(content)
-                    data = json.loads(content)
-                    return data.get("Options", {})
+                content = self._read_text_file_robust(target)
+                content = self.strip_jsonc_comments(content)
+                data = json.loads(content)
+                return data.get("Options", {})
             except:
                 pass
         return {}
@@ -7711,7 +7733,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 _col_auto_job[0] = self.after(600, self._refresh_collections)
         self.col_search_var.trace_add("write", _on_col_search_type)
 
-        tk.Button(search_bg, text="✕", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [self.col_search_var.set(""), self.col_tag_var.set("All Tags"), self._refresh_collections()]).pack(side="left")
+        tk.Button(search_bg, text="×", font=FONT_XSMALL, bg=BG_SECTION, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: [self.col_search_var.set(""), self.col_tag_var.set("All Tags"), self._refresh_collections()]).pack(side="left")
 
         # Tag filter dropdown (populated async)
         self.col_tag_var = tk.StringVar(value="All Tags")

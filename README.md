@@ -447,6 +447,9 @@ If your Windows Documents folder has been relocated (e.g. to another drive), the
 **Mods are not loading in-game**
 Check your modloader log and also your active profile in the `~/Documents/Anno 117 - Pax Romana/mods/` folder - either `active-profile.txt` directly, or, on newer game versions, the file that `mods/profile.txt` points to inside `mods/profiles/`. If there is a **#** in front of the mod or a **# not installed** after it, the game does not load the mod. Check again in your Activation tab or ask on the Modding Discord for help.
 
+**A mod doesn't show up in the mod list at all**
+The app tolerates common formatting issues in a mod's `modinfo.json` - non-UTF-8 text encodings (e.g. mods written with Chinese characters), a UTF-8 byte-order mark, and trailing commas are all handled automatically. If a mod still doesn't appear, check the debug log at Settings → View Debug Log for a line starting with "Error parsing" - it names the exact file and the JSON error, which you can report to the mod's author or attach to a GitHub issue.
+
 **Mod Browser / Collections tab is greyed out**
 These tabs require a mod.io API key. Go to Settings → mod.io Integration, enter your key and connect your account. Sometimes mod.io API is down - then try again later or do a restart of the app.
 
