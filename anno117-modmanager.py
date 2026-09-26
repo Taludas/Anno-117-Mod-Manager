@@ -1491,12 +1491,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._imperial_alert(T(1999101192), T(1999101225), is_error=True)
 
     def run_install_logic(self, zip_path, silent=False):
-        """Validates the mod storage path, extracts the dropped or selected .zip archive into the correct mod folder (handling overwrites and conflicts), activates the mod if the setting is on and refreshes the UI."""
+        """Validates the mod storage path, extracts the dropped or selected .zip archive into the correct mod folder (handling overwrites and conflicts), activates the mod if the setting is on and refreshes the UI. Returns True if the mod's files actually made it onto disk, False otherwise - callers that removed the mod's previous version beforehand use this to decide whether to discard that backup or restore it."""
         target_base_dir = self.mod_path
 
         if not target_base_dir:
             self._imperial_alert(T(1999101193), T(1999101226), is_error=True)
-            return
+            return False
 
         if not os.path.exists(target_base_dir):
             os.makedirs(target_base_dir, exist_ok=True)
@@ -1511,7 +1511,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 if mod_internal_path is None:
                     self._imperial_alert(T(1999101194), T(1999101227), is_error=True)
-                    return
+                    return False
 
                 if mod_internal_path:
                     folder_name = os.path.basename(mod_internal_path)
@@ -1526,7 +1526,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     confirm = self._imperial_question(T(1999101210), msg)
 
                     if not confirm:
-                        return
+                        return False
                     shutil.rmtree(final_destination)
 
                 temp_extract = os.path.join(target_base_dir, "_temp_ext")
@@ -1574,7 +1574,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         self._imperial_alert(T(1999101212), T(1999101388, folder_name))
                         if getattr(self, 'jump_to_activation', True):
                             self.switch_tab("Mod Activation", select_id=new_mod_id)
-                        return
+                        return True
 
                 self.mods = self.get_all_mod_metadata()
                 self.parse_active_profile()
@@ -1598,8 +1598,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     if getattr(self, 'jump_to_activation', True):
                         self.switch_tab("Mod Activation", select_id=new_mod_id)
 
+                return True
+
         except Exception as e:
             self._imperial_alert(T(1999101282), T(1999101390, e), is_error=True)
+            return False
 
     def render_installation_tab(self):
         """Builds the Manual Install tab UI: a Nexus URL paste field, a ZIP file picker and a drag-and-drop target rectangle."""
@@ -6363,7 +6366,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.after(0, lambda: status_lbl.config(text=T(1999101107)))
 
                 # We use .after(0) because run_install_logic has UI elements (messageboxes) and those MUST be called from the main thread.
-                self.after(0, lambda zp=zip_path, td=_tmp_dir, bp=_backup_path: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td, bp))
+                self.after(0, lambda zp=zip_path, td=_tmp_dir, bp=_backup_path, op=_old_path: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td, bp, op))
 
             except Exception as e:
                 try:
@@ -6376,24 +6379,28 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         threading.Thread(target=run_task, daemon=True).start()
 
-    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None, backup_path=None):
-        """Called after a zip download completes. If a mod.io mod_id is provided it runs the dependency preflight flow; otherwise it calls run_install_logic directly to extract and install the zip. Any backup of the previous (already removed) mod version is discarded once the installation is done."""
+    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None, backup_path=None, old_path=None):
+        """Called after a zip download completes. If a mod.io mod_id is provided it runs the dependency preflight flow; otherwise it calls run_install_logic directly to extract and install the zip. If the install actually succeeded, any backup of the previous (already removed) mod version is discarded; if it didn't - a malformed archive, a missing modinfo.json, anything short of the mod's files landing on disk - the backup is restored instead, so a failed update never leaves the user with neither version of the mod."""
         window.destroy()
 
-        def _cleanup():
+        def _cleanup(success):
             if tmp_dir:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
-            # Update installed successfully - the old data is no longer needed
-            self._discard_stashed_mod_folder(backup_path)
+            if success:
+                # Update installed successfully - the old data is no longer needed
+                self._discard_stashed_mod_folder(backup_path)
+            else:
+                # Install didn't actually happen - put the previous version back
+                self._restore_stashed_mod_folder(old_path, backup_path)
 
         if mod_id is not None:
             def _preflight_then_cleanup():
-                self._preflight_deps_then_install(zip_path, mod_id, install_area, dl_url, mod_name)
-                _cleanup()
+                success = self._preflight_deps_then_install(zip_path, mod_id, install_area, dl_url, mod_name)
+                _cleanup(success)
             threading.Thread(target=_preflight_then_cleanup, daemon=True).start()
         else:
-            self.run_install_logic(zip_path)
-            _cleanup()
+            success = self.run_install_logic(zip_path)
+            _cleanup(success)
 
     def _install_failed(self, window, error_msg):
         """Cleanup on network or download failure."""
@@ -6453,7 +6460,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         threading.Thread(target=task, daemon=True).start()
 
     def _preflight_deps_then_install(self, main_zip_path, mod_id, install_area, dl_url, mod_name):
-        """Background: installs any missing dependencies first (with alerts), then installs the main mod and subscribes. Uses threading.Event to sequence all main-thread blocking calls correctly."""
+        """Background: installs any missing dependencies first (with alerts), then installs the main mod and subscribes. Uses threading.Event to sequence all main-thread blocking calls correctly. Returns run_install_logic's success/failure result for the main mod, so a caller that removed the mod's previous version beforehand knows whether to keep that removal or restore it."""
         headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
 
         # 1. Fetch dependency list from mod.io
@@ -6527,14 +6534,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._pending_modio_mapping = (str(mod_id), mod_name)
 
         main_done = threading.Event()
+        main_result = {"success": False}
         def _do_main_install(ev=main_done):
-            self.run_install_logic(main_zip_path)
+            main_result["success"] = self.run_install_logic(main_zip_path)
             ev.set()
         self.after(0, _do_main_install)
         main_done.wait()
 
         # 4. Subscribe (starts its own background thread)
         self._subscribe_to_mod(str(mod_id), install_area, dl_url, mod_name)
+
+        return main_result["success"]
 
     def _install_mod_dependencies(self, mod_id):
         """Fetches the dependency list for mod_id from mod.io and silently downloads + installs any that are not already present locally."""
