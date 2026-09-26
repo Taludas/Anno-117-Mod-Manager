@@ -3175,7 +3175,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             res.raise_for_status()
                             dl_url = (res.json().get('modfile') or {}).get('download', {}).get('binary_url')
                             if dl_url:
-                                self.after(0, lambda u=dl_url, n=mn, m=mid: self._download_and_install(u, n, mod_id=m))
+                                self.after(0, lambda u=dl_url, n=mn, m=mid: self._download_and_install(u, n, mod_id=m, clean_existing=True, clean_modio_id=m))
                             else:
                                 self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101472), is_error=True))
                         except Exception as ex:
@@ -3432,7 +3432,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             dl_url = (res.json().get('modfile') or {}).get('download', {}).get('binary_url')
                             if dl_url:
                                 self._pending_modio_mapping = (str(mid), mn)
-                                self.after(0, lambda u=dl_url, n=mn: self._download_and_install(u, n))
+                                self.after(0, lambda u=dl_url, n=mn, m=mid: self._download_and_install(u, n, clean_existing=True, clean_modio_id=m))
                                 # Remove from update set immediately; re-check all after install settles
                                 self._modio_update_available.discard(lid)
                                 self.after(5000, lambda: threading.Thread(target=self._check_modio_version_updates, daemon=True).start())
@@ -6209,8 +6209,101 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         label.config(image=photo, text="", pady=0)
         label.image = photo
 
-    def _download_and_install(self, url, mod_name, mod_id=None, install_area=None):
-        """Downloads the mod and passes it to the existing run_install_logic."""
+    def _find_local_mod_entry(self, modio_id=None, mod_name=""):
+        """Resolves the locally installed top-level mod entry for a mod.io ID (via the
+        subscription map) or, failing that, via its display name. Returns the metadata
+        dict, or None if the mod is not present on disk."""
+        all_local = self.get_all_mod_metadata()
+
+        # 1. Precise resolution through the persisted local ModID -> mod.io ID mapping
+        if modio_id is not None:
+            rev_map  = {v: k for k, v in self._subscription_modio_map.items()}
+            local_id = rev_map.get(str(modio_id))
+            if local_id:
+                match = next((m for m in all_local if m['id'] == local_id), None)
+                if match:
+                    return match
+
+        if not mod_name:
+            return None
+
+        import re as _re
+        def _tok(s):
+            return set(_re.sub(r'[^a-z0-9]', ' ', str(s).lower()).split())
+
+        norm_target = mod_name.lower().replace(' ', '')
+        name_tokens = _tok(mod_name)
+
+        # 2. Exact normalised name match
+        for m in all_local:
+            if m.get('parent_path'):
+                continue
+            if m.get('name', '').lower().replace(' ', '') == norm_target:
+                return m
+
+        # 3. Token-subset match in both directions
+        for m in all_local:
+            if m.get('parent_path'):
+                continue
+            lt = _tok(m.get('name', ''))
+            if lt and (lt.issubset(name_tokens) or (name_tokens and name_tokens.issubset(lt))):
+                return m
+
+        return None
+
+    def _stash_existing_mod_folder(self, modio_id=None, mod_name=""):
+        """Removes the currently installed data of a mod (folder incl. all files and
+        sub-mods) before an update is downloaded, so the new version can never be merged
+        into leftovers of the old one. The folder is moved to a temporary backup instead
+        of being deleted outright, so it can be restored if the update fails.
+        Returns (original_path, backup_path) or (None, None)."""
+        target = self._find_local_mod_entry(modio_id, mod_name)
+        if not target:
+            return (None, None)
+
+        path = target.get('path')
+        if not path or not os.path.exists(path):
+            return (None, None)
+
+        try:
+            backup_root = tempfile.mkdtemp(prefix="anno117_old_")
+            backup_path = os.path.join(backup_root, os.path.basename(path))
+            shutil.move(path, backup_path)
+            print(f"[update] Old mod data removed before download: {path}")
+            return (path, backup_path)
+        except Exception as e:
+            print(f"[update] Could not remove old mod data '{path}': {e}")
+            return (None, None)
+
+    def _restore_stashed_mod_folder(self, original_path, backup_path):
+        """Restores a previously stashed mod folder after a failed update."""
+        if not original_path or not backup_path or not os.path.exists(backup_path):
+            return
+        try:
+            if os.path.exists(original_path):
+                shutil.rmtree(original_path, ignore_errors=True)
+            os.makedirs(os.path.dirname(original_path), exist_ok=True)
+            shutil.move(backup_path, original_path)
+            print(f"[update] Restored previous mod data: {original_path}")
+        except Exception as e:
+            print(f"[update] Could not restore previous mod data: {e}")
+        finally:
+            self._discard_stashed_mod_folder(backup_path)
+
+    def _discard_stashed_mod_folder(self, backup_path):
+        """Permanently deletes a stashed backup folder once the update has succeeded."""
+        if not backup_path:
+            return
+        try:
+            shutil.rmtree(os.path.dirname(backup_path), ignore_errors=True)
+        except Exception as e:
+            print(f"[update] Could not clean up backup folder: {e}")
+
+    def _download_and_install(self, url, mod_name, mod_id=None, install_area=None, clean_existing=False, clean_modio_id=None):
+        """Downloads the mod and passes it to the existing run_install_logic.
+        With clean_existing=True (updates / reinstalls) the currently installed mod folder
+        and all of its files are deleted BEFORE the download starts. The removed data is
+        kept in a temporary backup and restored automatically if the update fails."""
         dl_win = tk.Toplevel(self)
         dl_win.title(T(1999101103))
         dl_win.geometry("400x250")
@@ -6239,7 +6332,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         status_lbl.pack()
 
         def run_task():
+            _old_path = _backup_path = None
             try:
+                # 0. Update / reinstall: wipe the old mod data first (folder + files)
+                if clean_existing:
+                    self.after(0, lambda: status_lbl.config(text=T(1999101107)))
+                    _clean_id = clean_modio_id if clean_modio_id is not None else mod_id
+                    _old_path, _backup_path = self._stash_existing_mod_folder(_clean_id, mod_name)
+
                 # 1. Prepare Download Path
                 _tmp_dir = tempfile.mkdtemp(prefix="anno117_mod_")
                 safe_name = "".join([c for c in mod_name if c.isalnum() or c in (' ', '_')]).rstrip()
@@ -6263,24 +6363,28 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.after(0, lambda: status_lbl.config(text=T(1999101107)))
 
                 # We use .after(0) because run_install_logic has UI elements (messageboxes) and those MUST be called from the main thread.
-                self.after(0, lambda zp=zip_path, td=_tmp_dir: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td))
+                self.after(0, lambda zp=zip_path, td=_tmp_dir, bp=_backup_path: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td, bp))
 
             except Exception as e:
                 try:
                     shutil.rmtree(_tmp_dir, ignore_errors=True)
                 except Exception:
                     pass
+                # Download failed - put the removed mod data back where it was
+                self._restore_stashed_mod_folder(_old_path, _backup_path)
                 self.after(0, lambda: self._install_failed(dl_win, str(e)))
 
         threading.Thread(target=run_task, daemon=True).start()
 
-    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None):
-        """Called after a zip download completes. If a mod.io mod_id is provided it runs the dependency preflight flow; otherwise it calls run_install_logic directly to extract and install the zip."""
+    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None, backup_path=None):
+        """Called after a zip download completes. If a mod.io mod_id is provided it runs the dependency preflight flow; otherwise it calls run_install_logic directly to extract and install the zip. Any backup of the previous (already removed) mod version is discarded once the installation is done."""
         window.destroy()
 
         def _cleanup():
             if tmp_dir:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
+            # Update installed successfully - the old data is no longer needed
+            self._discard_stashed_mod_folder(backup_path)
 
         if mod_id is not None:
             def _preflight_then_cleanup():
@@ -6535,7 +6639,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 msg = T(1999101359, mod_name)
 
                 if self._imperial_question(T(1999101213), msg):
-                    self._download_and_install(dl_url, mod_name, mod_id=mod_id)
+                    self._download_and_install(dl_url, mod_name, mod_id=mod_id, clean_existing=True, clean_modio_id=mod_id)
 
             _ico_rei = load_icon("reinstall", (22, 22))
             refresh_btn = tk.Button(install_area, text="" if _ico_rei else "↻", font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="flat", cursor="hand2", padx=6, image=_ico_rei, compound="center" if _ico_rei else "none", command=_confirm_reinstall)
