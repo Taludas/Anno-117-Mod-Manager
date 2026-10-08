@@ -7451,8 +7451,38 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        canvas.bind('<Enter>', lambda e: canvas.bind_all("<MouseWheel>", lambda ev: canvas.yview_scroll(int(-1 * (ev.delta / 120)), "units")))
-        canvas.bind('<Leave>', lambda e: canvas.unbind_all("<MouseWheel>"))
+        # Mouse wheel support for the complete right-side options area.
+        # Binding only the canvas causes dead zones over child widgets. Unbinding
+        # on canvas <Leave> is also unreliable when groups change their geometry.
+        def _on_options_mousewheel(event):
+            if not canvas.winfo_exists():
+                return "break"
+            delta = getattr(event, "delta", 0)
+            if delta:
+                canvas.yview_scroll(-1 if delta > 0 else 1, "units")
+            return "break"
+
+        def _activate_options_wheel(event=None):
+            canvas.bind_all("<MouseWheel>", _on_options_mousewheel)
+
+        def _deactivate_options_wheel_if_outside(event=None):
+            def check_pointer():
+                if not self.right_panel.winfo_exists():
+                    return
+                x, y = self.right_panel.winfo_pointerxy()
+                widget = self.right_panel.winfo_containing(x, y)
+                current = widget
+                while current is not None:
+                    if current == self.right_panel:
+                        return
+                    current = getattr(current, "master", None)
+                canvas.unbind_all("<MouseWheel>")
+            self.right_panel.after_idle(check_pointer)
+
+        self.right_panel.bind("<Enter>", _activate_options_wheel, add="+")
+        self.right_panel.bind("<Leave>", _deactivate_options_wheel_if_outside, add="+")
+        container.bind("<Enter>", _activate_options_wheel, add="+")
+        canvas.bind("<Enter>", _activate_options_wheel, add="+")
 
         active_options = self._load_active_options()
         mod_active_opts = active_options.get(mod['id'], {})
@@ -7462,9 +7492,78 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             tk.Label(container, text=T(1999101116), font=FONT_BODY, bg=BG_SECTION, fg=FG_DIM).pack(pady=20)
             return
 
+        # Build collapsible option groups first. A schema entry with type="group"
+        # is a visual-only header and is never written to active-options.jsonc.
+        group_hosts = {}
+        for group_key, group_details in options_schema.items():
+            if not isinstance(group_details, dict):
+                continue
+            if str(group_details.get('type', '')).lower() != 'group':
+                continue
+
+            group_frame = tk.Frame(
+                container,
+                bg=BG_SECTION,
+                highlightthickness=2,
+                highlightbackground=FG_GOLD,
+                highlightcolor=FG_GOLD,
+            )
+            group_frame.pack(fill="x", padx=20, pady=7)
+
+            group_label_text = str(group_details.get('label', group_key))
+            group_header = tk.Label(
+                group_frame,
+                text=group_label_text,
+                font=FONT_BODY,
+                bg=BG_SECTION,
+                fg=FG_MAIN,
+                anchor="w",
+                justify="left",
+                cursor="hand2",
+                padx=15,
+                pady=10,
+            )
+            group_header.pack(fill="x")
+
+            group_body = tk.Frame(group_frame, bg=BG_SECTION)
+            raw_collapsed = group_details.get('collapsed', False)
+            collapsed = (
+                raw_collapsed if isinstance(raw_collapsed, bool)
+                else str(raw_collapsed).strip().lower() == 'true'
+            )
+            group_state = {'collapsed': collapsed}
+
+            if not collapsed:
+                group_body.pack(fill="x", padx=5, pady=(0, 5))
+
+            def toggle_group(event=None, body=group_body, state=group_state):
+                state['collapsed'] = not state['collapsed']
+                if state['collapsed']:
+                    body.pack_forget()
+                else:
+                    body.pack(fill="x", padx=5, pady=(0, 5))
+                def refresh_group_scrollregion():
+                    container.update_idletasks()
+                    canvas.configure(scrollregion=canvas.bbox("all"))
+                canvas.after_idle(refresh_group_scrollregion)
+                return "break"
+
+            group_header.bind("<Button-1>", toggle_group)
+            group_hosts[group_key] = group_body
+
         for opt_key, opt_details in options_schema.items():
-            opt_frame = tk.Frame(container, bg=BG_SECTION, highlightthickness=1, highlightbackground=FG_DIM)
-            opt_frame.pack(fill="x", padx=20, pady=5)
+            if not isinstance(opt_details, dict):
+                continue
+            opt_type_for_layout = str(opt_details.get('type', 'text')).lower()
+            if opt_type_for_layout == 'group':
+                continue
+
+            group_key = opt_details.get('group')
+            option_parent = group_hosts.get(group_key, container)
+            in_group = option_parent is not container
+
+            opt_frame = tk.Frame(option_parent, bg=BG_SECTION, highlightthickness=1, highlightbackground=FG_DIM)
+            opt_frame.pack(fill="x", padx=5 if in_group else 20, pady=5)
 
             inner_padding = tk.Frame(opt_frame, bg=BG_SECTION)
             inner_padding.pack(fill="x", padx=15, pady=(8, 12))
