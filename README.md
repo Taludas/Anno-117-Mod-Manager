@@ -307,7 +307,7 @@ Some mods expose configurable value options in their `modinfo.json` (colour valu
   - **Slider** - move the slider button in incremental steps to any value inside the min and max value.
   - **Text / Colour** - free-text entry; colour options include a colour-picker button for specific mods.
 - Changes are saved to `active-options.jsonc` in your mod folder and applied next time you launch the game.
-- **Option groups** - mod authors can bundle related options into collapsible sections: an entry with `"type": "group"` (plus a `label` and an optional `"collapsed": true`) becomes a section header, and any option with `"group": "<group key>"` is shown inside it. Click a header to expand or collapse it. Groups are display-only and are never written to `active-options.jsonc`. See [For Mod Authors: Grouping Options](#for-mod-authors-grouping-options) for an example.
+- **Option groups** - mod authors can bundle related options into collapsible sections: an entry with `"type": "group"` (plus a `label` and an optional `"collapsed": true`) becomes a section header, and any option with `"group": "<group key>"` is shown inside it. Click a header to expand or collapse it; the arrow on the right shows whether a section is open (▲) or closed (▼). Groups are display-only and are never written to `active-options.jsonc`. See [For Mod Authors: Grouping Options](#for-mod-authors-grouping-options) for an example.
 - **Reset to Default** resets options for the selected mod. **Reset All to Default** resets every mod at once.
 
 #### For Mod Authors: Grouping Options

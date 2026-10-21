@@ -1766,6 +1766,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.right_panel = tk.Frame(self, bg=BG_SECTION, width=INFO_WIDTH, borderwidth=0, highlightthickness=0)
         self.right_panel.grid(row=0, column=2, sticky="nsew", padx=(5, 5), pady=5)
         self.right_panel.grid_propagate(False)
+        # Children are packed, so pack propagation must be off too - otherwise long
+        # texts (e.g. German button labels) widen the panel per selected mod.
+        self.right_panel.pack_propagate(False)
 
         self.lbl_right_title = tk.Label(self.right_panel, text=T(1999101009), font=FONT_HEADER, bg=BG_SECTION, fg=FG_MAIN)
         self.lbl_right_title.pack(pady=10)
@@ -7674,8 +7677,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._bind_hover(btn_reset, "#8b0000", "#AF0202")
         self._attach_tooltip(btn_reset, T(1999101270))
 
-        lbl_name = tk.Label(header_frame, text=mod['name'], font=FONT_HEADER, bg=BG_SECTION, fg=FG_MAIN, wraplength=320, justify="left", anchor="nw")
+        lbl_name = tk.Label(header_frame, text=mod['name'], font=FONT_HEADER, bg=BG_SECTION, fg=FG_MAIN, wraplength=280, justify="left", anchor="nw")
         lbl_name.pack(side="left", fill="x", expand=True)
+        # Wrap the name in whatever space the (language-dependent) reset button leaves.
+        def _fit_name_wrap(event, lbl=lbl_name, btn=btn_reset):
+            wrap = max(120, event.width - btn.winfo_reqwidth() - 20)
+            if lbl.cget("wraplength") != wrap:
+                lbl.config(wraplength=wrap)
+        header_frame.bind("<Configure>", _fit_name_wrap)
 
         tk.Frame(self.right_panel, height=1, bg=FG_DIM).pack(fill="x", padx=15, pady=5)
 
@@ -7752,8 +7761,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             group_frame.pack(fill="x", padx=20, pady=7)
 
             group_label_text = str(group_details.get('label', group_key))
-            group_header = tk.Label(
-                group_frame,
+            group_header = tk.Frame(group_frame, bg=BG_SECTION, cursor="hand2")
+            group_header.pack(fill="x")
+
+            raw_collapsed = group_details.get('collapsed', False)
+            collapsed = (
+                raw_collapsed if isinstance(raw_collapsed, bool)
+                else str(raw_collapsed).strip().lower() == 'true'
+            )
+            group_state = {'collapsed': collapsed}
+
+            # Accordion indicator: same arrow icons as the mod list's sort headers.
+            # Down = collapsed (click to expand), up = expanded (click to collapse).
+            group_arrow = tk.Label(group_header, bg=BG_SECTION, fg=FG_MAIN, font=FONT_BODY, cursor="hand2")
+            group_arrow.pack(side="right", padx=(5, 15))
+            group_title = tk.Label(
+                group_header,
                 text=group_label_text,
                 font=FONT_BODY,
                 bg=BG_SECTION,
@@ -7764,32 +7787,36 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 padx=15,
                 pady=10,
             )
-            group_header.pack(fill="x")
+            group_title.pack(side="left", fill="x", expand=True)
+
+            def set_group_arrow(arrow=group_arrow, state=group_state):
+                ico = load_icon("arrow_down" if state['collapsed'] else "arrow_up", (18, 18))
+                if ico:
+                    arrow.config(image=ico, text="")
+                    arrow.image = ico
+                else:
+                    arrow.config(image="", text="▼" if state['collapsed'] else "▲")
+            set_group_arrow()
 
             group_body = tk.Frame(group_frame, bg=BG_SECTION)
-            raw_collapsed = group_details.get('collapsed', False)
-            collapsed = (
-                raw_collapsed if isinstance(raw_collapsed, bool)
-                else str(raw_collapsed).strip().lower() == 'true'
-            )
-            group_state = {'collapsed': collapsed}
-
             if not collapsed:
                 group_body.pack(fill="x", padx=5, pady=(0, 5))
 
-            def toggle_group(event=None, body=group_body, state=group_state):
+            def toggle_group(event=None, body=group_body, state=group_state, update_arrow=set_group_arrow):
                 state['collapsed'] = not state['collapsed']
                 if state['collapsed']:
                     body.pack_forget()
                 else:
                     body.pack(fill="x", padx=5, pady=(0, 5))
+                update_arrow()
                 def refresh_group_scrollregion():
                     container.update_idletasks()
                     canvas.configure(scrollregion=canvas.bbox("all"))
                 canvas.after_idle(refresh_group_scrollregion)
                 return "break"
 
-            group_header.bind("<Button-1>", toggle_group)
+            for w in (group_header, group_title, group_arrow):
+                w.bind("<Button-1>", toggle_group)
             group_hosts[group_key] = group_body
 
         for opt_key, opt_details in options_schema.items():
