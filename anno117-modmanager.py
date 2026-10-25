@@ -45,6 +45,11 @@ except Exception:
         Tk = tk.Tk
 
 
+def _norm_mod_id(mod_id):
+    """ModID as the game writes it in profiles: lowercase, other characters collapsed to '-'."""
+    return re.sub(r'[^a-z0-9]+', '-', str(mod_id).lower()).strip('-')
+
+
 def _fmt_num(v):
     """Format a number for slider display: comma-separated integers or compact sci-notation (e.g. 2.4e5)."""
     v = float(v)
@@ -973,7 +978,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 mod_id = clean_line.replace("#", "").replace("not installed", "").strip()
                 if mod_id and " " not in mod_id:
-                    mod_status_map[mod_id] = {
+                    mod_status_map[_norm_mod_id(mod_id)] = {
                         "active": is_active,
                         "uninstalled": is_uninstalled
                     }
@@ -1051,7 +1056,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if not isinstance(data, dict):
                     return
 
-                m_id = data.get("ModID")
+                m_id = _norm_mod_id(data.get("ModID") or "")
                 if not m_id: return
 
                 # Map app language keys → modinfo.json language keys
@@ -1129,11 +1134,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     "setup": data.get("GameSetup", {}) if isinstance(data.get("GameSetup"), dict) else {},
                     "diff": data.get("Difficulty", "Normal"),
                     "deps": {
-                        "Require": data.get("Dependencies", {}).get("Require", []) if isinstance(data.get("Dependencies"), dict) else [],
-                        "Optional": data.get("Dependencies", {}).get("Optional", []) if isinstance(data.get("Dependencies"), dict) else [],
-                        "LoadAfter": data.get("Dependencies", {}).get("LoadAfter", []) if isinstance(data.get("Dependencies"), dict) else [],
-                        "Deprecate": data.get("Dependencies", {}).get("Deprecate", []) if isinstance(data.get("Dependencies"), dict) else [],
-                        "Incompatible": data.get("Dependencies", {}).get("Incompatible", []) if isinstance(data.get("Dependencies"), dict) else []
+                        "Require": [_norm_mod_id(d) for d in deps.get("Require", []) if isinstance(d, str)],
+                        "Optional": [_norm_mod_id(d) for d in deps.get("Optional", []) if isinstance(d, str)],
+                        "LoadAfter": [_norm_mod_id(d) for d in deps.get("LoadAfter", []) if isinstance(d, str)],
+                        "Deprecate": [_norm_mod_id(d) for d in deps.get("Deprecate", []) if isinstance(d, str)],
+                        "Incompatible": [_norm_mod_id(d) for d in deps.get("Incompatible", []) if isinstance(d, str)]
                     }
                 }
                 mod_list.append(mod_entry)
@@ -1319,14 +1324,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     mod_id = stripped.lstrip('#').strip()
                     # Only treat as a mod ID if it looks like one (no spaces, reasonable length)
                     if mod_id and ' ' not in mod_id and len(mod_id) < 100:
-                        preset_disabled.add(mod_id)
+                        preset_disabled.add(_norm_mod_id(mod_id))
                     else:
                         header_lines.append(line)
                 else:
                     # Capture the active mods!
                     mod_id = stripped.split('#')[0].strip() # Strip inline comments if any
                     if mod_id and ' ' not in mod_id and len(mod_id) < 100:
-                        preset_active.add(mod_id)
+                        preset_active.add(_norm_mod_id(mod_id))
 
         # Build a complete profile covering every installed top-level mod
         all_mods = self.get_all_mod_metadata()
@@ -1457,7 +1462,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     if self._is_display_name_line(clean):
                         continue
                     mod_id = clean.split("#")[0].strip()
-                    if mod_id and " " not in mod_id and mod_id not in installed_ids:
+                    if mod_id and " " not in mod_id and _norm_mod_id(mod_id) not in installed_ids:
                         missing.append(mod_id)
         except Exception as e:
             print(f"Failed to check preset for missing mods: {e}")
@@ -2697,8 +2702,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if mod['parent_path'] is None:
                 installed_count += 1
 
-                # Calculate size once per top-level folder
-                m_size = get_dir_size(mod['path'])
+                # Calculate size once per top-level folder; cached until the list is rebuilt
+                size_cache = self.__dict__.setdefault('_dir_size_cache', {})
+                if mod['path'] not in size_cache:
+                    size_cache[mod['path']] = get_dir_size(mod['path'])
+                m_size = size_cache[mod['path']]
                 total_size_bytes += m_size
 
                 # Determine if Active
@@ -2867,15 +2875,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_entry = tk.Entry(search_bg, textvariable=search_var, font=FONT_SMALL, bg=BG_MAIN, fg=FG_MAIN, insertbackground=FG_MAIN, width=18, relief="flat")
         search_entry.pack(side="left")
 
-        btn_x = tk.Button(search_bg, text="×", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: self.render_activation_tab(search_query=""))
+        btn_x = tk.Button(search_bg, text="×", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_DIM, relief="flat", cursor="hand2", command=lambda: search_var.set(""))
         btn_x.pack(side="left")
         self._bind_hover(btn_x, BG_MAIN, BG_HOVER)
         self._attach_tooltip(btn_x, T(1999101250))
 
         def _on_search_type(*args):
-            val = search_var.get()
-            if len(val) >= 3 or val == "":
-                self.render_activation_tab(search_query=val)
+            self.current_search_query = search_var.get()
+            if getattr(self, '_search_job', None):
+                self.after_cancel(self._search_job)
+            self._search_job = self.after(150, self._apply_activation_search)
         search_var.trace_add("write", _on_search_type)
 
         _ico_all = load_icon("activate_all", (22, 22))
@@ -2885,8 +2894,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._bind_hover(btn_activate_all, "#2e7d32", "#36943a")
         self._attach_tooltip(btn_activate_all, T(1999101251))
 
-        search_entry.bind("<Return>", lambda e: self.render_activation_tab(search_query=search_var.get()))
-        search_entry.bind("<Escape>", lambda e: self.render_activation_tab(search_query=""))
+        search_entry.bind("<Return>", lambda e: self._apply_activation_search())
+        search_entry.bind("<Escape>", lambda e: search_var.set(""))
 
 
         _ico_folder  = load_icon("open_folder", (24, 24))
@@ -2900,7 +2909,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._attach_tooltip(btn_open_folder, T(1999101252))
 
         # Refresh mod list button
-        btn_refresh = tk.Button(search_row, text="" if _ico_refresh else "↻", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", padx=8, image=_ico_refresh, compound="center" if _ico_refresh else "none", command=lambda: self.render_activation_tab( search_query=self.current_search_query))
+        btn_refresh = tk.Button(search_row, text="" if _ico_refresh else "↻", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", padx=8, image=_ico_refresh, compound="center" if _ico_refresh else "none", command=lambda: [setattr(self, '_dir_size_cache', {}), self.render_activation_tab(search_query=self.current_search_query)])
         if _ico_refresh: btn_refresh.image = _ico_refresh
         btn_refresh.pack(side="right", padx=2)
         self._bind_hover(btn_refresh, BG_MAIN)
@@ -2932,7 +2941,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         def get_sorting_key(m):
             m_id = m['id']
             # A. Activation Group (0 for the top group, 1 for the bottom)
-            _status = statuses.get(m_id)
+            _status = self.mod_statuses.get(m_id)
             if _status is not None:
                 is_active = bool(_status.get("active", False))
             else:
@@ -3029,6 +3038,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         scrollbar.pack(side="right", fill="y")
 
         # 4. Draw Mods
+        self._act_list = None
         if self.show_load_order:
             # One row per mod AND sub-mod, numbered 1..N in the exact order the loader loads them.
             # The loader sorts sub-mods individually, so they appear on their own with a note
@@ -3079,8 +3089,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         else:
             active_sep_needed = True
             inactive_sep_needed = True
+            # Widgets per mod row (with its sub-mod rows), so a toggled mod can move without a rebuild
+            self._act_list = {'mods': all_top_mods, 'key': get_sorting_key, 'groups': {}, 'seps': {}, 'pack': {}}
 
-            for mod in filtered_mods:
+            for mod in sorted(all_top_mods, key=get_sorting_key):
                 m_id = mod['id']
                 _status = statuses.get(m_id)
                 if _status is not None:
@@ -3090,15 +3102,20 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 if is_active == self.sort_active_first and active_sep_needed:
                     label = T(1999101439) if self.sort_active_first else T(1999101438)
-                    self._draw_separator(label)
+                    self._act_list['seps'][is_active] = self._draw_separator(label)
                     active_sep_needed = False
 
                 if is_active != self.sort_active_first and inactive_sep_needed:
                     label = T(1999101438) if self.sort_active_first else T(1999101439)
-                    self._draw_separator(label)
+                    self._act_list['seps'][is_active] = self._draw_separator(label)
                     inactive_sep_needed = False
 
+                n_before = len(self.scrollable_frame.pack_slaves())
                 self._draw_mod_row(self.scrollable_frame, mod, self.mods, statuses, is_active, indent=0, select_id=select_id)
+                self._act_list['groups'][m_id] = self.scrollable_frame.pack_slaves()[n_before:]
+
+            if query:
+                self._repack_activation_list()
 
         # --- Mousewheel logic ---
         def _on_mousewheel(event):
@@ -3123,6 +3140,107 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             tk.Frame(sep_container, bg=line_color, height=2).pack(fill="x", padx=10, side="left", expand=True)
             tk.Label(sep_container, text=f" {text} ", font=FONT_BOLD_SMALL, bg=BG_MAIN, fg=FG_DIM).pack(side="left", padx=10)
             tk.Frame(sep_container, bg=line_color, height=2).pack(fill="x", padx=10, side="left", expand=True)
+            return sep_container
+
+    def _apply_activation_search(self):
+        """Applies the search box to the activation list: re-packs drawn rows, or rebuilds in Load Order view."""
+        self._search_job = None
+        if getattr(self, '_act_list', None):
+            self._repack_activation_list()
+        else:
+            self.render_activation_tab(search_query=self.current_search_query)
+
+    def _repack_activation_list(self, moved_id=None):
+        """Re-packs the drawn activation rows in sort order, hiding mods that don't match the search.
+        After a toggle (moved_id) the visible rows stay where they are on screen; after a search the list returns to the top."""
+        data = getattr(self, '_act_list', None)
+        frame = getattr(self, 'scrollable_frame', None)
+        if not data or not frame or not frame.winfo_exists():
+            return
+        if moved_id is not None and moved_id not in data['groups']:
+            return
+
+        def _is_active(m_id):
+            _status = self.mod_statuses.get(m_id)
+            if _status is not None:
+                return bool(_status.get("active", False))
+            return self.enable_new_mods_var.get() in ("on", "keep")
+
+        anchor, offset = None, 0
+        if moved_id is not None:
+            # Anchor on the first visible widget that is not moving
+            self.canvas.update_idletasks()
+            moved = {str(w) for w in data['groups'][moved_id]}
+            view_top = self.canvas.yview()[0] * max(frame.winfo_height(), 1)
+            for w in frame.pack_slaves():
+                if str(w) not in moved and w.winfo_y() + w.winfo_height() > view_top:
+                    anchor, offset = w, w.winfo_y() - view_top
+                    break
+
+        query = self.current_search_query.lower().strip()
+        order = []
+        section = None
+        for m in sorted(data['mods'], key=data['key']):
+            if query and not (query in str(m.get('name', '')).lower() or query in str(m.get('category', '')).lower()):
+                continue
+            active = _is_active(m['id'])
+            if active != section:
+                sep = data['seps'].get(active)
+                if sep is None or not sep.winfo_exists():
+                    sep = data['seps'][active] = self._draw_separator(T(1999101439) if active else T(1999101438))
+                order.append(sep)
+                section = active
+            order.extend(data['groups'][m['id']])
+
+        for w in frame.pack_slaves():
+            if str(w) not in data['pack']:
+                info = w.pack_info()
+                info.pop('in', None)
+                data['pack'][str(w)] = info
+
+        # Touch only the rows that change, with window redraw held until the list is final
+        self._hold_redraw(self.canvas, True)
+        try:
+            wanted = {str(w) for w in order}
+            for w in frame.pack_slaves():
+                if str(w) not in wanted:
+                    w.pack_forget()
+            cur = [str(w) for w in frame.pack_slaves()]
+            for i, w in enumerate(order):
+                if i < len(cur) and cur[i] == str(w):
+                    continue
+                opts = dict(data['pack'][str(w)])
+                if i > 0:
+                    opts['after'] = order[i - 1]
+                elif cur:
+                    opts['before'] = frame.nametowidget(cur[0])
+                w.pack(**opts)
+                if str(w) in cur:
+                    cur.remove(str(w))
+                cur.insert(i, str(w))
+
+            frame.update_idletasks()
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            if anchor is not None:
+                self.canvas.yview_moveto(max(0, anchor.winfo_y() - offset) / max(frame.winfo_height(), 1))
+            elif moved_id is None:
+                self.canvas.yview_moveto(0)
+            self.canvas.update_idletasks()
+        finally:
+            self._hold_redraw(self.canvas, False)
+
+    def _hold_redraw(self, widget, hold):
+        """Windows only: suspends painting of a widget and its children (WM_SETREDRAW), repainting it once on release."""
+        if not IS_WINDOWS:
+            return
+        try:
+            hwnd = widget.winfo_id()
+            ctypes.windll.user32.SendMessageW(hwnd, 0x000B, 0 if hold else 1, 0)
+            if not hold:
+                # RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME
+                ctypes.windll.user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0004 | 0x0080 | 0x0100 | 0x0400)
+        except Exception:
+            pass
 
     def _draw_mod_row(self, parent_widget, current_mod, all_mods, statuses, is_active, indent=0, select_id=None, load_order_pos=None, load_order_positions=None, flat=False, parent_note=None):
         """Renders a single mod entry row inside the activation tab list: checkbox or indent marker, category badge, status/warning icons (conflict, missing dep, deprecated, tweaks) and the mod name coloured by state. Binds hover, click and keyboard navigation."""
@@ -3226,9 +3344,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 self.toggle_mod_status(current_mod['id'], var.get())
                 self.parse_active_profile()
-                # Dynamically update the top bar without refreshing the whole list
+                # Update the top bar and move the row to its group without rebuilding the list
                 self.update_stats_label()
-                self.render_activation_tab()
+                self._repack_activation_list(moved_id=current_mod['id'])
                 if getattr(self, 'selected_row_frame', None) == row:
                     self.update_right_panel(current_mod)
 
@@ -3504,7 +3622,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     if not clean:
                         updated_lines.append(line)
                         continue
-                    current_id = clean.lstrip('#').split('#')[0].strip()
+                    current_id = _norm_mod_id(clean.lstrip('#').split('#')[0].strip())
 
                     if current_id == mod_id:
                         updated_lines.append(f"{mod_id} # not installed\n")
@@ -3906,7 +4024,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 updated_lines.append(line)
                 continue
 
-            current_id = clean.lstrip('#').split('#')[0].strip().split()[0]
+            current_id = _norm_mod_id(clean.lstrip('#').split('#')[0].strip().split()[0])
 
             if current_id == mod_id:
                 found = True
@@ -6950,7 +7068,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if os.path.exists(path):
             try:
                 with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    return {_norm_mod_id(k): v for k, v in json.load(f).items()}
             except Exception as e:
                 print(f"Failed to load subscription map: {e}")
         return {}
@@ -7329,7 +7447,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if not clean:
                     updated_lines.append(line)
                     continue
-                current_id = clean.lstrip('#').split('#')[0].strip()
+                current_id = _norm_mod_id(clean.lstrip('#').split('#')[0].strip())
 
                 if current_id == mod_id:
                     updated_lines.append(f"{mod_id} # not installed\n")
