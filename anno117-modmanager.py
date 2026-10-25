@@ -9,6 +9,17 @@ import tkinter as tk
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX   = platform.system() == "Linux"
 
+def _detect_wine():
+    """True when the Windows build runs under Wine/Proton (e.g. on Linux or the Steam Deck). Wine's ntdll exports wine_get_version."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        return hasattr(ctypes.windll.ntdll, "wine_get_version")
+    except Exception:
+        return False
+
+IS_WINE = _detect_wine()
+
 # Guard Windows-only imports
 if IS_WINDOWS:
     import winreg
@@ -608,18 +619,67 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if bitmask & 1:
                 drives.append(f"{letter}:")
             bitmask >>= 1
+        if IS_WINE:
+            # Under Wine, Z: is the whole Linux filesystem (incl. /proc): globbing it is slow and
+            # misses hidden folders like .local anyway, so Linux locations are searched explicitly.
+            drives = [d for d in drives
+                      if not (os.path.isdir(d + "\\proc") and os.path.isdir(d + "\\etc"))]
         return drives
 
+    def _ask_directory(self, title):
+        """Folder picker. Under Wine, Tk's own dialog is used instead of Wine's Windows dialog, which
+        hides dot-folders such as ~/.local or ~/.wine where Linux games and prefixes live."""
+        if IS_WINE:
+            try:
+                # Load the dialog code first; sourcing it later would reset the hidden-files settings
+                self.tk.call('auto_load', '::tk::dialog::file::')
+                self.tk.call('auto_load', '::tk::dialog::file::chooseDir::')
+                self.tk.call('set', '::tk::dialog::file::showHiddenBtn', '1')
+                self.tk.call('set', '::tk::dialog::file::showHiddenVar', '1')
+                chosen = self.tk.call('::tk::dialog::file::chooseDir::', '-title', title, '-parent', str(self),
+                                      '-initialdir', self._unix_home() or '', '-mustexist', '1')
+                return str(chosen) if chosen else ''
+            except tk.TclError as e:
+                print(f"[dialog] Tk folder dialog failed, using the native one: {e}")
+        return filedialog.askdirectory(title=title)
+
+    def _unix_home(self):
+        """The Linux home folder: ~ when running natively, or its Wine drive path (Z:\\home\\<user>) when the Windows build runs under Wine/Proton. None if unknown."""
+        if not IS_WINE:
+            return os.path.expanduser('~')
+        # Wine sets WINEHOMEDIR to the NT path of the Unix home, e.g. \??\Z:\home\user
+        wine_home = os.environ.get('WINEHOMEDIR', '').replace('\\??\\', '', 1)
+        user = os.environ.get('USER') or os.environ.get('USERNAME') or ''
+        for cand in (wine_home, f"Z:\\home\\{user}", f"Z:\\var\\home\\{user}"):
+            if cand and os.path.isdir(cand):
+                return cand
+        return None
+
+    def _host_path(self, path):
+        """Makes a path that the user typed or a Linux config file names usable here. Under Wine, Unix
+        paths (/home/... or ~/...) are mapped onto the Z: drive; otherwise only ~ is expanded."""
+        path = (path or '').strip()
+        if IS_WINE:
+            home = self._unix_home()
+            if path.startswith('~') and home:
+                path = home + path[1:]
+            elif path.startswith('/'):
+                path = 'Z:' + path
+            return os.path.normpath(path.replace('/', '\\'))
+        return os.path.expanduser(path)
+
     def _linux_steam_libraries(self):
-        """Linux: every Steam library folder (the folder that contains steamapps/) of native, Flatpak and Snap Steam, including extra libraries listed in libraryfolders.vdf (e.g. on a second drive)."""
-        home = os.path.expanduser('~')
+        """Linux (natively, or the Windows build under Wine): every Steam library folder (the folder that contains steamapps/) of native, Flatpak and Snap Steam, including extra libraries listed in libraryfolders.vdf (e.g. on a second drive)."""
+        home = self._unix_home()
+        if not home:
+            return []
         steam_roots = [
             os.path.join(home, '.steam', 'steam'),
             os.path.join(home, '.local', 'share', 'Steam'),
             os.path.join(home, '.var', 'app', 'com.valvesoftware.Steam', '.local', 'share', 'Steam'),
             os.path.join(home, '.var', 'app', 'com.valvesoftware.Steam', 'data', 'Steam'),
             os.path.join(home, 'snap', 'steam', 'common', '.local', 'share', 'Steam'),
-            '/usr/share/steam',
+            self._host_path('/usr/share/steam'),
         ]
         libraries = []
         for sr in steam_roots:
@@ -629,7 +689,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             try:
                 with open(os.path.join(sr, 'steamapps', 'libraryfolders.vdf'), encoding='utf-8', errors='ignore') as f:
                     for lib in re.findall(r'"path"\s+"([^"]+)"', f.read()):
-                        libraries.append(lib.replace('\\\\', '\\'))
+                        libraries.append(self._host_path(lib.replace('\\\\', '\\')))
             except OSError:
                 pass
         # The same library is often reachable via several symlinked roots
@@ -644,7 +704,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         cached = getattr(self, '_wine_prefixes_cache', None)
         if cached is not None:
             return cached
-        home = os.path.expanduser('~')
+        home = self._unix_home()
+        if not home:
+            self._wine_prefixes_cache = []
+            return []
         prefixes = [os.path.join(home, '.wine')]
 
         for lib in self._linux_steam_libraries():
@@ -665,7 +728,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 for name in os.listdir(cfg_dir):
                     with open(os.path.join(cfg_dir, name), encoding='utf-8', errors='ignore') as f:
                         for p in re.findall(pattern, f.read(), re.MULTILINE):
-                            prefixes.append(os.path.expanduser(p.strip()))
+                            prefixes.append(self._host_path(p))
             except OSError:
                 pass
 
@@ -775,9 +838,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             program_files = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
             possible_roots.append(os.path.join(program_files, "Ubisoft", "Ubisoft Game Launcher", "games", "Anno 117 - Pax Romana", "Anno 117"))
             possible_roots.append(os.path.join(program_files, "Steam", "steamapps", "common", "Anno 117 - Pax Romana", "Anno 117"))
-        else:
+        if not IS_WINDOWS or IS_WINE:
             # Linux: the Steam version in any Steam library, and the Ubisoft version inside
-            # any Wine/Proton prefix (Steam non-Steam-game, Lutris, Heroic, Bottles, ~/.wine ...)
+            # any Wine/Proton prefix (Steam non-Steam-game, Lutris, Heroic, Bottles, ~/.wine ...).
+            # Also run when this Windows build runs under Wine, usually in a different prefix
+            # than the game, where the registry and C: don't know about the game.
             for lib in self._linux_steam_libraries():
                 possible_roots.append(os.path.join(lib, 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'))
                 possible_roots.append(os.path.join(lib, 'steamapps', 'common'))
@@ -817,7 +882,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if found:
                 return found
 
-        if not IS_WINDOWS:
+        if not IS_WINDOWS or IS_WINE:
             # Last resort: the game was installed to a custom folder inside a prefix
             for prefix in self._linux_wine_prefixes():
                 for game_dir in self._find_game_dirs_in_prefix(prefix):
@@ -990,7 +1055,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         return
         # Not found — prompt user
         self._imperial_alert(T(1999101473), T(1999101474))
-        chosen = filedialog.askdirectory(title=T(1999101475))
+        chosen = self._ask_directory(title=T(1999101475))
         if chosen:
             chosen = os.path.normpath(chosen)
             # Accept either "Anno 117 - Pax Romana" or its "mods" subfolder
@@ -1008,7 +1073,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         if not self.game_exe_path:
             self._imperial_alert(T(1999101187), T(1999101220))
-            manual_root = filedialog.askdirectory(title="Select Anno 117 Installation Directory")
+            manual_root = self._ask_directory(title="Select Anno 117 Installation Directory")
             if manual_root:
                 if not self.set_game_path_from_root(os.path.normpath(manual_root)):
                     self.game_exe_path = ""
@@ -4540,7 +4605,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if not typed or typed == _applied_game_path[0]:
                 return
             _applied_game_path[0] = typed
-            typed = os.path.normpath(os.path.expanduser(typed))
+            typed = os.path.normpath(self._host_path(typed))
             if typed.lower().endswith(".exe"):
                 typed = os.path.dirname(os.path.dirname(os.path.dirname(typed)))
             if self.set_game_path_from_root(typed):
@@ -4564,7 +4629,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         def _apply_docs_path(ch):
             if ch:
                 # Accept either the "Anno 117 - Pax Romana" folder or its "mods" subfolder
-                ch = os.path.normpath(os.path.expanduser(ch))
+                ch = os.path.normpath(self._host_path(ch))
                 if os.path.basename(ch).lower() == "mods":
                     ch = os.path.dirname(ch)  # step up to "Anno 117 - Pax Romana"
                 self.custom_docs_path = ch
@@ -4581,16 +4646,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             w.config(text=T(1999101371, new_docs_display))
                             break
         def _browse_docs():
-            _apply_docs_path(filedialog.askdirectory(title=T(1999101475)))
+            _apply_docs_path(self._ask_directory(title=T(1999101475)))
         def _apply_typed_docs(event=None):
             typed = _docs_var.get().strip()
             if not typed:
                 if getattr(self, "custom_docs_path", ""):
                     _clear_docs()
                 return
-            if os.path.normpath(os.path.expanduser(typed)) == os.path.normpath(getattr(self, "custom_docs_path", "") or "."):
+            if os.path.normpath(self._host_path(typed)) == os.path.normpath(getattr(self, "custom_docs_path", "") or "."):
                 return
-            if os.path.isdir(os.path.expanduser(typed)):
+            if os.path.isdir(self._host_path(typed)):
                 _apply_docs_path(typed)
             else:
                 self._imperial_alert(T(1999101284), T(1999101395, typed), is_error=True)
@@ -4613,7 +4678,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if getattr(self, 'custom_docs_path', ''):
             docs_raw = os.path.join(self.custom_docs_path, "mods")
         else:
-            user_docs = (None if IS_WINDOWS else self._linux_prefix_documents()) or os.path.expanduser("~/Documents")
+            user_docs = self._default_docs_dir()
             docs_raw = os.path.join(user_docs, "Anno 117 - Pax Romana", "mods")
         docs_display = os.path.normpath(docs_raw)
 
@@ -4741,22 +4806,30 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
     def browse_game_path(self):
         """Opens a directory picker and passes the chosen path to set_game_path_from_root."""
-        path = filedialog.askdirectory(title="Select Anno 117 Installation Directory")
+        path = self._ask_directory(title="Select Anno 117 Installation Directory")
         if path:
             normalized_path = os.path.normpath(path)
             self.set_game_path_from_root(normalized_path)
+
+    def _default_docs_dir(self):
+        """The Documents folder that holds "Anno 117 - Pax Romana" when no custom folder is set."""
+        win_docs = os.path.expanduser("~/Documents")
+        if IS_WINDOWS and not IS_WINE:
+            return win_docs
+        if IS_WINE and os.path.isdir(os.path.join(win_docs, "Anno 117 - Pax Romana")):
+            # The app shares the game's Wine prefix
+            return win_docs
+        # On Linux the game runs under Proton/Wine, so its Documents folder lives inside
+        # a prefix (users/steamuser under Proton, users/<name> under plain Wine).
+        home = self._unix_home()
+        return self._linux_prefix_documents() or (win_docs if IS_WINE or not home else os.path.join(home, "Documents"))
 
     def update_mod_path_from_mode(self):
         """Recalculates mod_path and the active-profile/log/options file paths. Respects a custom Anno 117 documents folder if the user has configured one."""
         if getattr(self, 'custom_docs_path', ''):
             docs_base = os.path.normpath(os.path.join(self.custom_docs_path, "mods"))
         else:
-            if IS_WINDOWS:
-                user_docs = os.path.expanduser("~/Documents")
-            else:
-                # On Linux the game runs under Proton/Wine, so its Documents folder lives inside
-                # a prefix (users/steamuser under Proton, users/<name> under plain Wine).
-                user_docs = self._linux_prefix_documents() or os.path.join(os.path.expanduser("~"), "Documents")
+            user_docs = self._default_docs_dir()
             docs_base = os.path.normpath(os.path.join(user_docs, "Anno 117 - Pax Romana", "mods"))
 
         # Newer game versions store profiles as mods/profiles/<name>.txt, with the

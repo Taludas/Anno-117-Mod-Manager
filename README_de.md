@@ -114,6 +114,8 @@ Den spielinternen `Documents`-Ordner nimmt er aus demselben Präfix (`drive_c/us
 
 Wird das Spiel nicht gefunden, kannst du den Pfad unter **Einstellungen → Spiel-Dateien** selbst setzen: Klicke auf **Durchsuchen** oder füge den Pfad ins Feld ein und drücke Enter. Gemeint ist der Ordner `Anno 117 - Pax Romana` (der `Bin/Win64/Anno117.exe` enthält). Versteckte Ordner wie `.local` oder `.wine` werden in der Ordnerauswahl angezeigt; mit der Option „Show hidden“ lassen sie sich ein- und ausblenden. Wird dein Mods-Ordner ebenfalls nicht gefunden, setzt du den Documents-Ordner auf dieselbe Weise.
 
+**Die Windows-`.exe` unter Wine/Proton** (z. B. als Nicht-Steam-Spiel, in Lutris oder Bottles) funktioniert ebenfalls. Die App erkennt, dass sie unter Wine läuft, und durchsucht dieselben Linux-Orte über Wines Laufwerk `Z:`, auch wenn das Spiel in einem anderen Präfix liegt. Ihre Ordnerauswahl startet in deinem Linux-Home und zeigt versteckte Ordner. Pfade kannst du in Linux-Form einfügen (`/home/<Benutzer>/...` oder `~/...`); sie werden automatisch in `Z:\home\<Benutzer>\...` übersetzt.
+
 ---
 
 ## Erster Start

@@ -117,6 +117,8 @@ The in-game `Documents` folder is taken from the same prefix (`drive_c/users/<us
 
 If the game isn't found, set it yourself in **Settings → Game Files**: click **Browse** or paste the path into the field and press Enter. Point it at the `Anno 117 - Pax Romana` folder (the one that contains `Bin/Win64/Anno117.exe`). Hidden folders such as `.local` or `.wine` are shown in the folder picker; use its "Show hidden" option to toggle them. If your mods folder isn't found either, set the Documents folder the same way.
 
+**Running the Windows `.exe` under Wine/Proton** (e.g. as a non-Steam game, or in Lutris or Bottles) works too. The app notices it runs under Wine and searches the same Linux locations through Wine's `Z:` drive, even when the game sits in a different prefix. Its folder picker starts in your Linux home and shows hidden folders. Paths can be pasted in Linux form (`/home/<user>/...` or `~/...`); they are translated to `Z:\home\<user>\...` automatically.
+
 ---
 
 ## First Launch
