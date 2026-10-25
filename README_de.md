@@ -104,7 +104,15 @@ pip install pillow requests beautifulsoup4 tkinterdnd2
 python anno117-modmanager.py
 ```
 
-Die App speichert ihre Einstellungen und Logs unter `~/.config/Anno 117 Mod Manager/` auf Linux. Anno 117 selbst läuft über Steam + Proton — der Mod Manager erkennt das Spiel automatisch in `~/.steam/steam/steamapps/common/` und sucht den spielinternen `Documents`-Ordner im Proton-Präfix unter `~/.steam/steam/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/Documents/`.
+Die App speichert ihre Einstellungen und Logs unter `~/.config/Anno 117 Mod Manager/` auf Linux. Anno 117 selbst läuft über Proton oder Wine. Der Mod Manager sucht das Spiel:
+
+- in jeder Steam-Bibliothek (natives, Flatpak- und Snap-Steam, auch zusätzliche Bibliotheken auf anderen Laufwerken);
+- im Ubisoft-Connect-Ordner jedes Wine-/Proton-Präfixes: Steam (Ubisoft Connect als Nicht-Steam-Spiel), Lutris, Heroic, Bottles, Faugus, PortProton und `~/.wine`;
+- in eigenen Installationsordnern innerhalb dieser Präfixe.
+
+Den spielinternen `Documents`-Ordner nimmt er aus demselben Präfix (`drive_c/users/<Benutzer>/Documents/`).
+
+Wird das Spiel nicht gefunden, kannst du den Pfad unter **Einstellungen → Spiel-Dateien** selbst setzen: Klicke auf **Durchsuchen** oder füge den Pfad ins Feld ein und drücke Enter. Gemeint ist der Ordner `Anno 117 - Pax Romana` (der `Bin/Win64/Anno117.exe` enthält). Versteckte Ordner wie `.local` oder `.wine` werden in der Ordnerauswahl angezeigt; mit der Option „Show hidden“ lassen sie sich ein- und ausblenden. Wird dein Mods-Ordner ebenfalls nicht gefunden, setzt du den Documents-Ordner auf dieselbe Weise.
 
 ---
 
@@ -176,7 +184,9 @@ Der primäre Tab zum Verwalten, welche Mods beim Spielstart aktiv sind.
 #### Sortieren & Filtern
 
 - Klicke auf die Spaltenköpfe ✔️ / **Kategorie** / **Mod-Name** zum Sortieren. Kategorie unterstützt A→Z, Z→A und aus.
-- Nutze die **Suchleiste**, um nach Name oder Kategorie zu filtern. Ergebnisse werden ab drei Zeichen aktualisiert.
+- Nutze die **Suchleiste**, um nach Name oder Kategorie zu filtern. Die Liste filtert beim Tippen, schon ab dem ersten Buchstaben.
+- Wird ein Mod an- oder abgehakt, wandert er direkt in die Gruppe Aktiv bzw. Deaktiviert; der Rest der Liste bleibt, wo er ist.
+- **↻ Aktualisieren** liest alle Mods neu von der Festplatte, misst die Ordnergrößen neu und aktualisiert die Warnungen zu fehlenden Abhängigkeiten und Konflikten. Nutze es, nachdem du Mod-Dateien außerhalb der App geändert hast, oder um die Warnungen nach dem An- und Abhaken zu aktualisieren.
 - **Alle aktivieren** setzt das Profil zurück, sodass jeder installierte Mod aktiv ist.
 - Der **Ladereihenfolge**-Schalter wechselt zu einer schreibgeschützten Ansicht, die die genaue Reihenfolge zeigt, in der das Spiel Mods lädt – berechnet aus den `LoadAfter`-Abhängigkeitsregeln in der `modinfo.json` jedes Mods.
 

@@ -46,7 +46,10 @@ except Exception:
 
 
 def _norm_mod_id(mod_id):
-    """ModID as the game writes it in profiles: lowercase, other characters collapsed to '-'."""
+    """ModID as the game writes it in profiles: lowercase, other characters collapsed to '-'.
+    The LoadAfter wildcard '*' ("load after everything") is kept as is."""
+    if str(mod_id).strip() == '*':
+        return '*'
     return re.sub(r'[^a-z0-9]+', '-', str(mod_id).lower()).strip('-')
 
 
@@ -500,6 +503,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             # without having to add Linux-specific bindings at each call site.
             self.bind_all("<Button-4>", lambda e: e.widget.event_generate("<MouseWheel>", delta=120))
             self.bind_all("<Button-5>", lambda e: e.widget.event_generate("<MouseWheel>", delta=-120))
+            # Tk's own file dialog hides dot-folders with no way to show them, but Wine/Proton
+            # prefixes live under ~/.steam, ~/.local/share, ~/.wine, ~/.var etc. Load the dialog
+            # code (the bogus option makes the call fail fast) and turn on its "show hidden" toggle.
+            try:
+                try:
+                    self.tk.call('tk_getOpenFile', '-foobarbaz')
+                except tk.TclError:
+                    pass
+                self.tk.call('set', '::tk::dialog::file::showHiddenBtn', '1')
+                self.tk.call('set', '::tk::dialog::file::showHiddenVar', '1')
+            except tk.TclError as e:
+                print(f"[dialog] Could not enable hidden folders in file dialogs: {e}")
         self.geometry("1440x900")
         self.configure(bg=BG_MAIN)
 
@@ -595,6 +610,129 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             bitmask >>= 1
         return drives
 
+    def _linux_steam_libraries(self):
+        """Linux: every Steam library folder (the folder that contains steamapps/) of native, Flatpak and Snap Steam, including extra libraries listed in libraryfolders.vdf (e.g. on a second drive)."""
+        home = os.path.expanduser('~')
+        steam_roots = [
+            os.path.join(home, '.steam', 'steam'),
+            os.path.join(home, '.local', 'share', 'Steam'),
+            os.path.join(home, '.var', 'app', 'com.valvesoftware.Steam', '.local', 'share', 'Steam'),
+            os.path.join(home, '.var', 'app', 'com.valvesoftware.Steam', 'data', 'Steam'),
+            os.path.join(home, 'snap', 'steam', 'common', '.local', 'share', 'Steam'),
+            '/usr/share/steam',
+        ]
+        libraries = []
+        for sr in steam_roots:
+            if not os.path.isdir(os.path.join(sr, 'steamapps')):
+                continue
+            libraries.append(sr)
+            try:
+                with open(os.path.join(sr, 'steamapps', 'libraryfolders.vdf'), encoding='utf-8', errors='ignore') as f:
+                    for lib in re.findall(r'"path"\s+"([^"]+)"', f.read()):
+                        libraries.append(lib.replace('\\\\', '\\'))
+            except OSError:
+                pass
+        # The same library is often reachable via several symlinked roots
+        unique = {}
+        for lib in libraries:
+            if os.path.isdir(lib):
+                unique.setdefault(os.path.realpath(lib), lib)
+        return list(unique.values())
+
+    def _linux_wine_prefixes(self):
+        """Linux: Wine/Proton prefixes (folders containing drive_c) from Steam/Proton, Lutris, Heroic, Bottles, Faugus, PortProton and ~/.wine. Cached for the session."""
+        cached = getattr(self, '_wine_prefixes_cache', None)
+        if cached is not None:
+            return cached
+        home = os.path.expanduser('~')
+        prefixes = [os.path.join(home, '.wine')]
+
+        for lib in self._linux_steam_libraries():
+            compat = os.path.join(lib, 'steamapps', 'compatdata')
+            try:
+                prefixes += [os.path.join(compat, appid, 'pfx') for appid in os.listdir(compat)]
+            except OSError:
+                pass
+
+        # Lutris and Heroic record each game's prefix in their config files
+        for cfg_dir, pattern in [
+            (os.path.join(home, '.config', 'lutris', 'games'), r'^\s*prefix:\s*[\'"]?(.+?)[\'"]?\s*$'),
+            (os.path.join(home, '.local', 'share', 'lutris', 'games'), r'^\s*prefix:\s*[\'"]?(.+?)[\'"]?\s*$'),
+            (os.path.join(home, '.config', 'heroic', 'GamesConfig'), r'"winePrefix"\s*:\s*"([^"]+)"'),
+            (os.path.join(home, '.var', 'app', 'com.heroicgameslauncher.hgl', 'config', 'heroic', 'GamesConfig'), r'"winePrefix"\s*:\s*"([^"]+)"'),
+        ]:
+            try:
+                for name in os.listdir(cfg_dir):
+                    with open(os.path.join(cfg_dir, name), encoding='utf-8', errors='ignore') as f:
+                        for p in re.findall(pattern, f.read(), re.MULTILINE):
+                            prefixes.append(os.path.expanduser(p.strip()))
+            except OSError:
+                pass
+
+        # Default prefix locations of other launchers: look a few levels deep for drive_c
+        for parent in [
+            os.path.join(home, 'Games'),  # Lutris (~/Games/<game>) and Heroic (~/Games/Heroic/Prefixes/...)
+            os.path.join(home, '.local', 'share', 'bottles', 'bottles'),
+            os.path.join(home, '.var', 'app', 'com.usebottles.bottles', 'data', 'bottles', 'bottles'),
+            os.path.join(home, 'Faugus'),
+            os.path.join(home, 'PortProton', 'data', 'prefixes'),
+        ]:
+            level = [parent]
+            for _ in range(3):
+                nxt = []
+                for d in level:
+                    try:
+                        for e in os.scandir(d):
+                            if e.is_dir(follow_symlinks=False):
+                                (prefixes if os.path.isdir(os.path.join(e.path, 'drive_c')) else nxt).append(e.path)
+                    except OSError:
+                        pass
+                level = nxt
+
+        unique = {}
+        for p in prefixes:
+            if os.path.isdir(os.path.join(p, 'drive_c')):
+                unique.setdefault(os.path.realpath(p), p)
+        self._wine_prefixes_cache = list(unique.values())
+        return self._wine_prefixes_cache
+
+    def _linux_prefix_documents(self):
+        """Linux: the prefix's Documents folder that contains "Anno 117 - Pax Romana", preferring the prefix the game itself is installed in. Returns None if there is none."""
+        prefixes = []
+        exe = (getattr(self, 'game_exe_path', '') or '').replace('\\', '/')
+        if '/drive_c/' in exe:
+            prefixes.append(exe.split('/drive_c/', 1)[0])
+        prefixes += self._linux_wine_prefixes()
+        for prefix in prefixes:
+            users = os.path.join(prefix, 'drive_c', 'users')
+            try:
+                names = sorted(os.listdir(users), key=lambda n: n != 'steamuser')
+            except OSError:
+                continue
+            for name in names:
+                docs = os.path.join(users, name, 'Documents')
+                if os.path.isdir(os.path.join(docs, 'Anno 117 - Pax Romana')):
+                    return docs
+        return None
+
+    @staticmethod
+    def _find_game_dirs_in_prefix(prefix, max_depth=5):
+        """Linux: yields "Anno 117 - Pax Romana" folders inside a prefix's drive_c, for installs outside the Ubisoft default (e.g. C:\\Games). Skips windows/ and users/ and never follows symlinks."""
+        stack = [(os.path.join(prefix, 'drive_c'), 0)]
+        while stack:
+            path, depth = stack.pop()
+            try:
+                entries = list(os.scandir(path))
+            except OSError:
+                continue
+            for e in entries:
+                if not e.is_dir(follow_symlinks=False):
+                    continue
+                if e.name == 'Anno 117 - Pax Romana':
+                    yield e.path
+                elif depth < max_depth and not (depth == 0 and e.name.lower() in ('windows', 'users')):
+                    stack.append((e.path, depth + 1))
+
     def find_anno_exe(self):
         """Searches the Windows registry (Ubisoft launcher and Steam) and common installation directories for Anno117.exe. Returns the full path if found, otherwise an empty string."""
         possible_roots = []
@@ -638,24 +776,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             possible_roots.append(os.path.join(program_files, "Ubisoft", "Ubisoft Game Launcher", "games", "Anno 117 - Pax Romana", "Anno 117"))
             possible_roots.append(os.path.join(program_files, "Steam", "steamapps", "common", "Anno 117 - Pax Romana", "Anno 117"))
         else:
-            # Linux: Steam typical install locations + Proton compatdata for the Ubisoft launcher prefix
-            home = os.path.expanduser('~')
-            steam_roots = [
-                os.path.join(home, '.steam', 'steam'),
-                os.path.join(home, '.local', 'share', 'Steam'),
-                '/usr/share/steam',
-            ]
-            for sr in steam_roots:
-                possible_roots.append(os.path.join(sr, 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'))
-                # Proton: game installed inside the Ubisoft Game Launcher prefix
-                compat = os.path.join(sr, 'steamapps', 'compatdata')
-                if os.path.isdir(compat):
-                    try:
-                        for appid in os.listdir(compat):
-                            ubi = os.path.join(compat, appid, 'pfx', 'drive_c', 'Program Files (x86)', 'Ubisoft', 'Ubisoft Game Launcher', 'games', 'Anno 117 - Pax Romana')
-                            possible_roots.append(ubi)
-                    except OSError:
-                        pass
+            # Linux: the Steam version in any Steam library, and the Ubisoft version inside
+            # any Wine/Proton prefix (Steam non-Steam-game, Lutris, Heroic, Bottles, ~/.wine ...)
+            for lib in self._linux_steam_libraries():
+                possible_roots.append(os.path.join(lib, 'steamapps', 'common', 'Anno 117 - Pax Romana', 'Anno 117'))
+                possible_roots.append(os.path.join(lib, 'steamapps', 'common'))
+            for prefix in self._linux_wine_prefixes():
+                for pf in ('Program Files (x86)', 'Program Files'):
+                    possible_roots.append(os.path.join(prefix, 'drive_c', pf, 'Ubisoft', 'Ubisoft Game Launcher', 'games'))
 
         drives = self.get_drive_letters()
 
@@ -688,6 +816,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             found = _exe_under(root)
             if found:
                 return found
+
+        if not IS_WINDOWS:
+            # Last resort: the game was installed to a custom folder inside a prefix
+            for prefix in self._linux_wine_prefixes():
+                for game_dir in self._find_game_dirs_in_prefix(prefix):
+                    found = _exe_under(game_dir)
+                    if found:
+                        return found
 
         return None
 
@@ -1595,7 +1731,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             content = self._read_text_file_robust(info_path)
                             content = self.strip_jsonc_comments(content)
                             info_data = json.loads(content)
-                            new_mod_id = info_data.get("ModID")
+                            new_mod_id = _norm_mod_id(info_data.get("ModID") or "") or None
                         except:
                             pass
                         break
@@ -1677,7 +1813,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     info_path = os.path.join(final_destination, info_file)
                     if os.path.exists(info_path):
                         try:
-                            mod_id = json.loads(self.strip_jsonc_comments(self._read_text_file_robust(info_path))).get("ModID")
+                            mod_id = _norm_mod_id(json.loads(self.strip_jsonc_comments(self._read_text_file_robust(info_path))).get("ModID") or "") or None
                         except Exception:
                             pass
                         break
@@ -3145,6 +3281,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def _apply_activation_search(self):
         """Applies the search box to the activation list: re-packs drawn rows, or rebuilds in Load Order view."""
         self._search_job = None
+        if getattr(self, 'current_tab', None) != "Mod Activation":
+            return
         if getattr(self, '_act_list', None):
             self._repack_activation_list()
         else:
@@ -3218,6 +3356,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if str(w) in cur:
                     cur.remove(str(w))
                 cur.insert(i, str(w))
+            # Arrow-key navigation (tk_focusNext) walks children in stacking order, which is
+            # creation order; restack so it follows the order on screen again.
+            for w in order:
+                w.lift()
 
             frame.update_idletasks()
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -3344,9 +3486,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                 self.toggle_mod_status(current_mod['id'], var.get())
                 self.parse_active_profile()
-                # Update the top bar and move the row to its group without rebuilding the list
+                # Update the top bar and move the row to its group without rebuilding the list.
+                # The Load Order view has no movable groups (activating changes the order), so it rebuilds.
                 self.update_stats_label()
-                self._repack_activation_list(moved_id=current_mod['id'])
+                if getattr(self, '_act_list', None):
+                    self._repack_activation_list(moved_id=current_mod['id'])
+                else:
+                    self.render_activation_tab(select_id=current_mod['id'])
+                    return
                 if getattr(self, 'selected_row_frame', None) == row:
                     self.update_right_panel(current_mod)
 
@@ -4012,6 +4159,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if not os.path.exists(self.active_profile_path):
             return
 
+        mod_id = _norm_mod_id(mod_id)
         updated_lines = []
         found = False
         with open(self.active_profile_path, 'r', encoding='utf-8') as f:
@@ -4020,11 +4168,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         for line in lines:
             clean = line.strip()
             parts = clean.split()
-            if not clean or clean.startswith("##"):
+            id_part = clean.lstrip('#').split('#')[0].split()
+            if not clean or clean.startswith("##") or not id_part:
                 updated_lines.append(line)
                 continue
 
-            current_id = _norm_mod_id(clean.lstrip('#').split('#')[0].strip().split()[0])
+            current_id = _norm_mod_id(id_part[0])
 
             if current_id == mod_id:
                 found = True
@@ -4381,7 +4530,24 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         e_frame = tk.Frame(path_frame, bg=BG_MAIN)
         e_frame.pack(fill="x", pady=5)
 
-        tk.Entry(e_frame, textvariable=self.game_path_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, relief="flat").pack(side="left", fill="x", expand=True, ipady=4)
+        game_path_entry = tk.Entry(e_frame, textvariable=self.game_path_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, relief="flat")
+        game_path_entry.pack(side="left", fill="x", expand=True, ipady=4)
+        # A typed/pasted path is applied on Enter or when leaving the field (the folder
+        # picker can be awkward on Linux, where prefixes sit in hidden folders).
+        _applied_game_path = [self.game_path_var.get()]
+        def _apply_typed_game_path(event=None):
+            typed = self.game_path_var.get().strip()
+            if not typed or typed == _applied_game_path[0]:
+                return
+            _applied_game_path[0] = typed
+            typed = os.path.normpath(os.path.expanduser(typed))
+            if typed.lower().endswith(".exe"):
+                typed = os.path.dirname(os.path.dirname(os.path.dirname(typed)))
+            if self.set_game_path_from_root(typed):
+                _applied_game_path[0] = self.game_path_var.get()
+                self.update_mod_path_from_mode()
+        game_path_entry.bind("<Return>", _apply_typed_game_path)
+        game_path_entry.bind("<FocusOut>", _apply_typed_game_path)
         browse_btn = tk.Button(e_frame, text=T(1999101053), font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, cursor="hand2", command=self.browse_game_path)
         browse_btn.pack(side="right", padx=(10, 0))
         self._bind_hover(browse_btn, BG_SECTION, BG_HOVER)
@@ -4393,12 +4559,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         _dov_row = tk.Frame(path_frame, bg=BG_MAIN)
         _dov_row.pack(fill="x", pady=4)
         _docs_var = tk.StringVar(value=getattr(self, "custom_docs_path", ""))
-        tk.Entry(_dov_row, textvariable=_docs_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, relief="flat").pack(side="left", fill="x", expand=True, ipady=4)
-        def _browse_docs():
-            ch = filedialog.askdirectory(title=T(1999101475))
+        docs_entry = tk.Entry(_dov_row, textvariable=_docs_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, relief="flat")
+        docs_entry.pack(side="left", fill="x", expand=True, ipady=4)
+        def _apply_docs_path(ch):
             if ch:
                 # Accept either the "Anno 117 - Pax Romana" folder or its "mods" subfolder
-                ch = os.path.normpath(ch)
+                ch = os.path.normpath(os.path.expanduser(ch))
                 if os.path.basename(ch).lower() == "mods":
                     ch = os.path.dirname(ch)  # step up to "Anno 117 - Pax Romana"
                 self.custom_docs_path = ch
@@ -4414,6 +4580,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         if "Documents" in str(cfg.get("value", [""])):
                             w.config(text=T(1999101371, new_docs_display))
                             break
+        def _browse_docs():
+            _apply_docs_path(filedialog.askdirectory(title=T(1999101475)))
+        def _apply_typed_docs(event=None):
+            typed = _docs_var.get().strip()
+            if not typed:
+                if getattr(self, "custom_docs_path", ""):
+                    _clear_docs()
+                return
+            if os.path.normpath(os.path.expanduser(typed)) == os.path.normpath(getattr(self, "custom_docs_path", "") or "."):
+                return
+            if os.path.isdir(os.path.expanduser(typed)):
+                _apply_docs_path(typed)
+            else:
+                self._imperial_alert(T(1999101284), T(1999101395, typed), is_error=True)
+        docs_entry.bind("<Return>", _apply_typed_docs)
+        docs_entry.bind("<FocusOut>", _apply_typed_docs)
         def _clear_docs():
             self.custom_docs_path = ""
             _docs_var.set("")
@@ -4431,7 +4613,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if getattr(self, 'custom_docs_path', ''):
             docs_raw = os.path.join(self.custom_docs_path, "mods")
         else:
-            user_docs = os.path.expanduser("~/Documents")
+            user_docs = (None if IS_WINDOWS else self._linux_prefix_documents()) or os.path.expanduser("~/Documents")
             docs_raw = os.path.join(user_docs, "Anno 117 - Pax Romana", "mods")
         docs_display = os.path.normpath(docs_raw)
 
@@ -4572,17 +4754,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             if IS_WINDOWS:
                 user_docs = os.path.expanduser("~/Documents")
             else:
-                # On Linux the game runs under Proton; try the Proton documents path first
-                home = os.path.expanduser("~")
-                proton_docs = None
-                _compat_root = os.path.join(home, ".steam", "steam", "steamapps", "compatdata")
-                if os.path.isdir(_compat_root):
-                    for _appid in os.listdir(_compat_root):
-                        _candidate = os.path.join(_compat_root, _appid, "pfx", "drive_c", "users", "steamuser", "Documents")
-                        if os.path.isdir(os.path.join(_candidate, "Anno 117 - Pax Romana")):
-                            proton_docs = _candidate
-                            break
-                user_docs = proton_docs or os.path.join(home, "Documents")
+                # On Linux the game runs under Proton/Wine, so its Documents folder lives inside
+                # a prefix (users/steamuser under Proton, users/<name> under plain Wine).
+                user_docs = self._linux_prefix_documents() or os.path.join(os.path.expanduser("~"), "Documents")
             docs_base = os.path.normpath(os.path.join(user_docs, "Anno 117 - Pax Romana", "mods"))
 
         # Newer game versions store profiles as mods/profiles/<name>.txt, with the

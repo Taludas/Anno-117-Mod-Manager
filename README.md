@@ -107,7 +107,15 @@ pip install pillow requests beautifulsoup4 tkinterdnd2
 python anno117-modmanager.py
 ```
 
-The app stores its settings and logs under `~/.config/Anno 117 Mod Manager/` on Linux. Anno 117 itself runs through Steam + Proton — the mod manager auto-detects the game in `~/.steam/steam/steamapps/common/` and looks for the in-game `Documents` folder inside the Proton prefix at `~/.steam/steam/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/Documents/`.
+The app stores its settings and logs under `~/.config/Anno 117 Mod Manager/` on Linux. Anno 117 itself runs through Proton or Wine. The mod manager looks for the game in:
+
+- every Steam library (native, Flatpak and Snap Steam, including extra libraries on other drives);
+- the Ubisoft Connect folder inside any Wine/Proton prefix: Steam (Ubisoft Connect added as a non-Steam game), Lutris, Heroic, Bottles, Faugus, PortProton and `~/.wine`;
+- custom install folders inside those prefixes.
+
+The in-game `Documents` folder is taken from the same prefix (`drive_c/users/<user>/Documents/`).
+
+If the game isn't found, set it yourself in **Settings → Game Files**: click **Browse** or paste the path into the field and press Enter. Point it at the `Anno 117 - Pax Romana` folder (the one that contains `Bin/Win64/Anno117.exe`). Hidden folders such as `.local` or `.wine` are shown in the folder picker; use its "Show hidden" option to toggle them. If your mods folder isn't found either, set the Documents folder the same way.
 
 ---
 
@@ -179,7 +187,9 @@ The primary tab for managing which mods are active when you launch the game.
 #### Sorting & Filtering
 
 - Click the ✔️ / **Category** / **Mod Name** column headers to sort. Category supports A→Z, Z→A and off.
-- Use the **search bar** to filter by name or category. Results update after three characters.
+- Use the **search bar** to filter by name or category. The list filters as you type, from the first letter.
+- Ticking or unticking a mod moves it straight to the Active or Deactivated group; the rest of the list stays where it is.
+- **↻ Refresh** re-reads all mods from disk, re-measures folder sizes and updates the missing-dependency and conflict warnings. Use it after changing mod files outside the app, or to update warnings after ticking mods.
 - **Activate All** resets the profile so every installed mod is active.
 - **Load Order** toggle switches to a read-only view showing the exact order in which the game will load mods, computed from `LoadAfter` dependency rules in each mod's `modinfo.json`.
 
