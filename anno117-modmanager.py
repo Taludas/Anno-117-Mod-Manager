@@ -1721,13 +1721,20 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         else:
             self._imperial_alert(T(1999101192), T(1999101225), is_error=True)
 
-    def run_install_logic(self, zip_path, silent=False):
-        """Validates the mod storage path, extracts the dropped or selected .zip archive into the correct mod folder (handling overwrites and conflicts), activates the mod if the setting is on and refreshes the UI. Returns True if the mod's files actually made it onto disk, False otherwise - callers that removed the mod's previous version beforehand use this to decide whether to discard that backup or restore it."""
+    def run_install_logic(self, zip_path, silent=False, errors=None):
+        """Validates the mod storage path, extracts the dropped or selected .zip archive into the correct mod folder (handling overwrites and conflicts), activates the mod if the setting is on and refreshes the UI. Returns True if the mod's files actually made it onto disk, False otherwise - callers that removed the mod's previous version beforehand use this to decide whether to discard that backup or restore it.
+        With an errors list, error messages are appended to it instead of being shown (used by batch updates)."""
+        def _fail(title, msg):
+            if errors is not None:
+                errors.append(msg)
+            else:
+                self._imperial_alert(title, msg, is_error=True)
+            return False
+
         target_base_dir = self.mod_path
 
         if not target_base_dir:
-            self._imperial_alert(T(1999101193), T(1999101226), is_error=True)
-            return False
+            return _fail(T(1999101193), T(1999101226))
 
         if not os.path.exists(target_base_dir):
             os.makedirs(target_base_dir, exist_ok=True)
@@ -1759,8 +1766,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     return self._install_multiple_mods(zref, independent_dirs, target_base_dir, silent)
 
                 if mod_internal_path is None:
-                    self._imperial_alert(T(1999101194), T(1999101227), is_error=True)
-                    return False
+                    return _fail(T(1999101194), T(1999101227))
 
                 if mod_internal_path:
                     folder_name = os.path.basename(mod_internal_path)
@@ -1806,14 +1812,10 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.mods = self.get_all_mod_metadata()
                     self.parse_active_profile()
 
-                    _av = self.enable_new_mods_var.get()
-                    if _av == "keep":
-                        # If the mod existed before, preserve its prior active state; otherwise default to inactive
-                        auto_activate = self.mod_statuses.get(new_mod_id, {}).get("active", False)
-                    else:
-                        auto_activate = (_av == "on")
+                    auto_activate, kept_state = self._activation_for_install(new_mod_id)
 
-                    if self._check_and_confirm_incompatible(new_mod_id):
+                    # An update keeps the mod's previous state, so there is nothing new to confirm
+                    if kept_state or self._check_and_confirm_incompatible(new_mod_id):
                         self.toggle_mod_status(new_mod_id, auto_activate)
                     else:
                         # User chose to keep the mod disabled – add it to the profile as inactive so it appears in the list.
@@ -1840,7 +1842,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self._pending_modio_mapping = None
 
                 if not silent:
-                    if new_mod_id and self.enable_new_mods_var.get() == "off":
+                    if new_mod_id and not kept_state and self.enable_new_mods_var.get() == "off":
                         self._imperial_alert(T(1999101212), T(1999101389, folder_name))
                     else:
                         self._imperial_alert(T(1999101201), T(1999101354, folder_name))
@@ -1850,8 +1852,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 return True
 
         except Exception as e:
-            self._imperial_alert(T(1999101282), T(1999101390, e), is_error=True)
-            return False
+            return _fail(T(1999101282), T(1999101390, e))
 
     def _install_multiple_mods(self, zref, mod_dirs, target_base_dir, silent=False):
         """Installs an archive that bundles several independent mods side by side (each folder has
@@ -1890,18 +1891,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if not installed:
             return False
 
-        # Activate each according to the "newly installed mods" setting, like a single install
+        # Activate each like a single install: updates keep their state, new mods follow the setting
         self.mods = self.get_all_mod_metadata()
         self.parse_active_profile()
-        activation_mode = self.enable_new_mods_var.get()
         for _, mod_id in installed:
             if not mod_id:
                 continue
-            if activation_mode == "keep":
-                activate = self.mod_statuses.get(mod_id, {}).get("active", False)
-            else:
-                activate = (activation_mode == "on")
-            if activate and not self._check_and_confirm_incompatible(mod_id):
+            activate, kept_state = self._activation_for_install(mod_id)
+            if activate and not kept_state and not self._check_and_confirm_incompatible(mod_id):
                 activate = False
             self.toggle_mod_status(mod_id, activate)
 
@@ -3061,6 +3058,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.stats_label_var = tk.StringVar()
         self.update_stats_label()
         tk.Label(stats_row, textvariable=self.stats_label_var, font=FONT_BOLD_SMALL, bg=BG_SECTION, fg=FG_MAIN).pack(side="left")
+
+        # Update-all button - only while mod.io reports updates for installed mods
+        _n_updates = len(self._bulk_update_targets())
+        if _n_updates:
+            btn_update_all = tk.Button(stats_row, text=f"! {T(1999101499, _n_updates)}", font=FONT_XSMALL, bg=FG_GOLD, fg="#000000", cursor="hand2", relief="raised", padx=8, command=self._update_all_mods)
+            btn_update_all.pack(side="right")
+            self._bind_hover(btn_update_all, FG_GOLD, "#f9d23a")
+            self._attach_tooltip(btn_update_all, T(1999101500))
 
         # Row 3: Search
         search_row = tk.Frame(focus_frame, bg=BG_SECTION)
@@ -6821,6 +6826,29 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         label.config(image=photo, text="", pady=0)
         label.image = photo
 
+    def _remember_activation_for_update(self, modio_id=None, mod_name=""):
+        """Before an update/reinstall: remembers whether the installed mod is active, so the install
+        restores that state instead of applying the "newly installed mods" setting. Returns the local ModID or None."""
+        entry = self._find_local_mod_entry(modio_id, mod_name)
+        if not entry:
+            return None
+        self.parse_active_profile()
+        active = bool(self.mod_statuses.get(entry['id'], {}).get("active", False))
+        self.__dict__.setdefault('_keep_activation', {})[entry['id']] = active
+        return entry['id']
+
+    def _activation_for_install(self, mod_id):
+        """Whether a just-installed mod should be active: (active, kept). Updates keep the state the mod had
+        before (see _remember_activation_for_update); new mods follow the "newly installed mods" setting."""
+        keep = self.__dict__.get('_keep_activation', {})
+        if mod_id in keep:
+            return keep.pop(mod_id), True
+        mode = self.enable_new_mods_var.get()
+        if mode == "keep":
+            # If the mod existed before, preserve its prior active state; otherwise default to inactive
+            return bool(self.mod_statuses.get(mod_id, {}).get("active", False)), False
+        return mode == "on", False
+
     def _find_local_mod_entry(self, modio_id=None, mod_name=""):
         """Resolves the locally installed top-level mod entry for a mod.io ID (via the
         subscription map) or, failing that, via its display name. Returns the metadata
@@ -6911,11 +6939,221 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         except Exception as e:
             print(f"[update] Could not clean up backup folder: {e}")
 
+    def _missing_modio_dependencies(self, mod_id, headers):
+        """Background: the mod.io dependencies of mod_id that are not installed locally, as (dep_mod_id, name, download_url) tuples. Dependencies that are installed are marked as subscribed."""
+        res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mod_id}/dependencies", headers=headers, timeout=10)
+        deps = res.json().get('data', []) if res.status_code == 200 else []
+        if not deps:
+            return []
+        installed_names = {
+            m.get('name', '').lower().replace(' ', '')
+            for m in self.get_all_mod_metadata()
+        }
+        missing = []
+        for dep in deps:
+            dep_mod_id = dep.get('mod_id')
+            dep_mod_name = html.unescape(dep.get('name', ''))
+            if dep_mod_name.lower().replace(' ', '') in installed_names:
+                self._subscription_states[str(dep_mod_id)] = True
+                continue
+            mod_res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{dep_mod_id}", headers=headers, timeout=10)
+            if mod_res.status_code != 200:
+                continue
+            dl_url = (mod_res.json().get('modfile') or {}).get('download', {}).get('binary_url')
+            if dl_url:
+                missing.append((dep_mod_id, dep_mod_name, dl_url))
+        return missing
+
+    def _bulk_update_targets(self):
+        """Installed top-level mods with a newer version on mod.io, as (local_id, modio_id, name) sorted by name."""
+        targets = []
+        for lid in getattr(self, '_modio_update_available', set()):
+            mid = self._subscription_modio_map.get(lid)
+            mod = next((m for m in self.mods if m['id'] == lid and not m.get('parent_path')), None)
+            if mid and mod:
+                targets.append((lid, str(mid), mod['name']))
+        return sorted(targets, key=lambda t: t[2].lower())
+
+    def _run_on_main_thread(self, fn):
+        """Background: runs fn on the Tk main thread, waits for it and returns its result."""
+        done = threading.Event()
+        box = {}
+        def _call():
+            try:
+                box['result'] = fn()
+            except Exception as e:
+                box['error'] = e
+            finally:
+                done.set()
+        self.after(0, _call)
+        done.wait()
+        if 'error' in box:
+            raise box['error']
+        return box.get('result')
+
+    def _update_all_mods(self):
+        """Updates every installed mod that has a newer version on mod.io, one after another in a single
+        progress window. Like a single update, each mod's old folder is moved to a backup first and restored
+        if its update fails. New required mods are installed too, and every mod keeps its active/inactive state.
+        Ends with one summary instead of a message per mod."""
+        if getattr(self, '_bulk_update_running', False):
+            return
+        targets = self._bulk_update_targets()
+        if not targets:
+            return
+
+        def _line(lid, name):
+            old_v, new_v = self._modio_update_versions.get(lid, ("", ""))
+            return f"  •  {name}" + (f"  ({old_v} → {new_v})" if old_v and new_v else "")
+        names = "\n".join(_line(lid, name) for lid, _, name in targets)
+        if not self._imperial_question(T(1999101213), T(1999101501, len(targets), names)):
+            return
+        self._bulk_update_running = True
+
+        # One progress window for the whole run (no per-mod pop-ups)
+        win_w, win_h = 440, 260
+        win = tk.Toplevel(self)
+        win.title(T(1999101502))
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (win_w // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (win_h // 2)
+        win.geometry(f"{win_w}x{win_h}+{x}+{y}")
+        win.configure(bg=BG_SECTION)
+        win.transient(self)
+        win.grab_set()
+        win.protocol("WM_DELETE_WINDOW", lambda: None)  # runs to the end; every mod is restored on failure
+
+        count_lbl = tk.Label(win, text="", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM)
+        count_lbl.pack(pady=(20, 5))
+        name_lbl = tk.Label(win, text="", font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=390)
+        name_lbl.pack(pady=5)
+        progress = ttk.Progressbar(win, orient="horizontal", length=320, mode="determinate")
+        progress.pack(pady=15)
+        status_lbl = tk.Label(win, text="", font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71")
+        status_lbl.pack()
+
+        # Updates keep each mod's activation, whatever "newly installed mods" is set to
+        self.parse_active_profile()
+        was_active = {lid: bool(self.mod_statuses.get(lid, {}).get("active", False)) for lid, _, _ in targets}
+        self.__dict__.setdefault('_keep_activation', {}).update(was_active)
+
+        def _download(url, zip_path):
+            response = requests.get(url, stream=True, timeout=15)
+            response.raise_for_status()
+            total = int(response.headers.get('content-length', 0))
+            done, last_pct = 0, -1
+            with open(zip_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=65536):
+                    f.write(chunk)
+                    done += len(chunk)
+                    pct = int(done * 100 / total) if total else 0
+                    if pct != last_pct:
+                        last_pct = pct
+                        self.after(0, lambda p=pct: progress.config(value=p))
+
+        def _install(zip_path, mid, name, errors):
+            self._pending_modio_mapping = (str(mid), name)
+            return self.run_install_logic(zip_path, silent=True, errors=errors)
+
+        def worker():
+            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+            updated, failed, new_deps = [], [], []
+            for i, (lid, mid, name) in enumerate(targets, 1):
+                self.after(0, lambda i=i, n=name: [count_lbl.config(text=T(1999101503, i, len(targets))),
+                                                   name_lbl.config(text=n.upper()),
+                                                   progress.config(value=0),
+                                                   status_lbl.config(text=T(1999101106))])
+                old_path = backup_path = tmp_dir = None
+                ok, error = False, ""
+                try:
+                    res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mid}", headers=headers, timeout=10)
+                    res.raise_for_status()
+                    dl_url = (res.json().get('modfile') or {}).get('download', {}).get('binary_url')
+                    if not dl_url:
+                        raise RuntimeError(T(1999101472))
+
+                    # A new version may require mods that aren't installed yet
+                    for dep_id, dep_name, dep_url in self._missing_modio_dependencies(mid, headers):
+                        dep_dir = tempfile.mkdtemp(prefix="anno117_mod_")
+                        try:
+                            dep_zip = os.path.join(dep_dir, "dependency.zip")
+                            _download(dep_url, dep_zip)
+                            self._run_on_main_thread(lambda z=dep_zip, d=dep_id, n=dep_name: self._silent_finalize(z, d, n))
+                            new_deps.append((dep_name, str(dep_id), lid))
+                        except Exception as e:
+                            print(f"[update all] Dependency '{dep_name}' failed: {e}")
+                        finally:
+                            shutil.rmtree(dep_dir, ignore_errors=True)
+
+                    old_path, backup_path = self._stash_existing_mod_folder(mid, name)
+                    tmp_dir = tempfile.mkdtemp(prefix="anno117_mod_")
+                    zip_path = os.path.join(tmp_dir, "update.zip")
+                    _download(dl_url, zip_path)
+                    self.after(0, lambda: status_lbl.config(text=T(1999101107)))
+                    install_errors = []
+                    ok = bool(self._run_on_main_thread(lambda z=zip_path, m=mid, n=name, er=install_errors: _install(z, m, n, er)))
+                    if not ok:
+                        error = "; ".join(install_errors)
+                except Exception as e:
+                    error = str(e)
+                    print(f"[update all] '{name}' failed: {e}")
+                finally:
+                    if tmp_dir:
+                        shutil.rmtree(tmp_dir, ignore_errors=True)
+                    if ok:
+                        self._discard_stashed_mod_folder(backup_path)
+                    else:
+                        self._restore_stashed_mod_folder(old_path, backup_path)
+                (updated if ok else failed).append((lid, name, error))
+            self.after(0, lambda: _finish(updated, failed, new_deps))
+
+        def _finish(updated, failed, new_deps):
+            self._bulk_update_running = False
+            try:
+                win.grab_release()
+                win.destroy()
+            except tk.TclError:
+                pass
+            self.mods = self.get_all_mod_metadata()
+            self.parse_active_profile()
+            for lid, _, _ in failed:
+                self._keep_activation.pop(lid, None)
+            for lid, _, _ in updated:
+                self._keep_activation.pop(lid, None)  # left over only if the new version has another ModID
+                self._modio_update_available.discard(lid)
+                self._modio_update_versions.pop(lid, None)
+            # A newly required mod is switched on when the mod that needs it is active
+            local_by_modio = {str(v): k for k, v in self._subscription_modio_map.items()}
+            for _, dep_modio_id, needed_by in new_deps:
+                dep_local = local_by_modio.get(dep_modio_id)
+                if dep_local and was_active.get(needed_by):
+                    self.toggle_mod_status(dep_local, True)
+            self.parse_active_profile()
+            if self.current_tab == "Mod Activation":
+                self.render_activation_tab()
+
+            parts = []
+            if updated:
+                parts.append(T(1999101505) + "\n" + "\n".join(f"  •  {n}" for _, n, _ in updated))
+            if failed:
+                parts.append(T(1999101506) + "\n" + "\n".join(f"  •  {n}" + (f" - {e}" if e else "") for _, n, e in failed))
+            if new_deps:
+                parts.append(T(1999101507) + "\n" + "\n".join(f"  •  {n}" for n, _, _ in new_deps))
+            self._imperial_alert(T(1999101504), "\n\n".join(parts), is_error=bool(failed) and not updated)
+            # Re-check: a badge comes back if a version still differs
+            self.after(2000, lambda: threading.Thread(target=self._check_modio_version_updates, daemon=True).start())
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _download_and_install(self, url, mod_name, mod_id=None, install_area=None, clean_existing=False, clean_modio_id=None):
         """Downloads the mod and passes it to the existing run_install_logic.
         With clean_existing=True (updates / reinstalls) the currently installed mod folder
         and all of its files are deleted BEFORE the download starts. The removed data is
-        kept in a temporary backup and restored automatically if the update fails."""
+        kept in a temporary backup and restored automatically if the update fails.
+        Updates keep the mod's current active/inactive state."""
+        keep_id = None
+        if clean_existing:
+            keep_id = self._remember_activation_for_update(clean_modio_id if clean_modio_id is not None else mod_id, mod_name)
         dl_win = tk.Toplevel(self)
         dl_win.title(T(1999101103))
         dl_win.geometry("400x250")
@@ -6975,7 +7213,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.after(0, lambda: status_lbl.config(text=T(1999101107)))
 
                 # We use .after(0) because run_install_logic has UI elements (messageboxes) and those MUST be called from the main thread.
-                self.after(0, lambda zp=zip_path, td=_tmp_dir, bp=_backup_path, op=_old_path: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td, bp, op))
+                self.after(0, lambda zp=zip_path, td=_tmp_dir, bp=_backup_path, op=_old_path: self._finalize_installation(dl_win, zp, mod_id, install_area, url, mod_name, td, bp, op, keep_id))
 
             except Exception as e:
                 try:
@@ -6984,15 +7222,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     pass
                 # Download failed - put the removed mod data back where it was
                 self._restore_stashed_mod_folder(_old_path, _backup_path)
+                self.after(0, lambda: self.__dict__.get('_keep_activation', {}).pop(keep_id, None))
                 self.after(0, lambda: self._install_failed(dl_win, str(e)))
 
         threading.Thread(target=run_task, daemon=True).start()
 
-    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None, backup_path=None, old_path=None):
+    def _finalize_installation(self, window, zip_path, mod_id=None, install_area=None, dl_url=None, mod_name=None, tmp_dir=None, backup_path=None, old_path=None, keep_id=None):
         """Called after a zip download completes. If a mod.io mod_id is provided it runs the dependency preflight flow; otherwise it calls run_install_logic directly to extract and install the zip. If the install actually succeeded, any backup of the previous (already removed) mod version is discarded; if it didn't - a malformed archive, a missing modinfo.json, anything short of the mod's files landing on disk - the backup is restored instead, so a failed update never leaves the user with neither version of the mod."""
         window.destroy()
 
         def _cleanup(success):
+            # The install normally consumes the remembered activation state; drop it if it never got that far
+            self.after(0, lambda: self.__dict__.get('_keep_activation', {}).pop(keep_id, None))
             if tmp_dir:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
             if success:
@@ -7075,30 +7316,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # 1. Fetch dependency list from mod.io
         to_install = []
         try:
-            dep_res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mod_id}/dependencies", headers=headers, timeout=10)
-            deps = dep_res.json().get('data', []) if dep_res.status_code == 200 else []
-
-            installed_names = {
-                m.get('name', '').lower().replace(' ', '')
-                for m in self.get_all_mod_metadata()
-            }
-
-            for dep in deps:
-                dep_mod_id = dep.get('mod_id')
-                dep_mod_name = html.unescape(dep.get('name', ''))
-                if dep_mod_name.lower().replace(' ', '') in installed_names:
-                    self._subscription_states[str(dep_mod_id)] = True
-                    continue
-                mod_res = requests.get(
-                    f"{MODIO_BASE_URL}/games/11358/mods/{dep_mod_id}",
-                    headers=headers, timeout=10)
-                if mod_res.status_code != 200:
-                    continue
-                dep_dl_url = (mod_res.json().get('modfile', {})
-                                            .get('download', {})
-                                            .get('binary_url'))
-                if dep_dl_url:
-                    to_install.append((dep_mod_id, dep_mod_name, dep_dl_url))
+            to_install = self._missing_modio_dependencies(mod_id, headers)
         except Exception as e:
             print(f"[Preflight] Dependency fetch failed: {e}")
 
@@ -7159,44 +7377,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         """Fetches the dependency list for mod_id from mod.io and silently downloads + installs any that are not already present locally."""
         try:
             headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
-            dep_url = f"{MODIO_BASE_URL}/games/11358/mods/{mod_id}/dependencies"
-            res = requests.get(dep_url, headers=headers, timeout=10)
-            if res.status_code != 200:
-                return
-
-            deps = res.json().get('data', [])
-            if not deps:
-                return
-
-            # Build set of already-installed mod names (lowercased, spaceless)
-            installed_names = {
-                m.get('name', '').lower().replace(' ', '')
-                for m in self.get_all_mod_metadata()
-            }
-
-            to_install = []
-            for dep in deps:
-                dep_mod_id   = dep.get('mod_id')
-                dep_mod_name = html.unescape(dep.get('name', ''))
-
-                # Skip if already installed locally
-                if dep_mod_name.lower().replace(' ', '') in installed_names:
-                    self._subscription_states[str(dep_mod_id)] = True
-                    continue
-
-                # Grab the download URL for this dependency
-                mod_url = f"{MODIO_BASE_URL}/games/11358/mods/{dep_mod_id}"
-                mod_res = requests.get(mod_url, headers=headers, timeout=10)
-                if mod_res.status_code != 200:
-                    continue
-
-                mod_data = mod_res.json()
-                dl_url = (mod_data.get('modfile', {})
-                                  .get('download', {})
-                                  .get('binary_url'))
-                if dl_url:
-                    to_install.append((dep_mod_id, dep_mod_name, dl_url))
-
+            to_install = self._missing_modio_dependencies(mod_id, headers)
             if not to_install:
                 return
 

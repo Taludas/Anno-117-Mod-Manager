@@ -182,6 +182,7 @@ Der primäre Tab zum Verwalten, welche Mods beim Spielstart aktiv sind.
 - Mod-Namen werden **rot** für Konflikte und **orange** für fehlende Abhängigkeiten oder Ersetzungen angezeigt.
 - Sub-Mods (Unterordner innerhalb eines Mods) erscheinen eingerückt unter ihrem übergeordneten Mod und können nicht einzeln deinstalliert werden.
 - Beim Start prüft die App im Hintergrund mod.io auf verfügbare Updates für alle abonnierten Mods. Das goldene **!**-Badge verschwindet, sobald du das Update installierst.
+- **Alle aktualisieren** – sind Updates verfügbar, erscheint neben dem Mod-Zähler eine goldene Schaltfläche **! Alle aktualisieren (N)**. Sie installiert alle Updates in einem Durchgang: ein Fortschrittsfenster, danach eine einzige Zusammenfassung. Jeder Mod bleibt aktiv bzw. inaktiv, neu benötigte Mods werden mitinstalliert (und eingeschaltet, wenn der Mod, der sie braucht, aktiv ist), und schlägt ein Update fehl, wird die vorherige Version dieses Mods wiederhergestellt.
 
 #### Sortieren & Filtern
 
@@ -417,6 +418,7 @@ Der Einstellungen-Tab ist scrollbar — nutze das Mausrad oder die Scrollleiste 
   - *Immer aktivieren* — neu installierte Mods werden sofort aktiviert.
   - *Immer deaktivieren* — Mods werden der Liste hinzugefügt, aber deaktiviert gelassen.
   - *Aktuellen Status beibehalten* — war der Mod bereits aktiv (z.B. bei einer Neuinstallation), bleibt er aktiv; andernfalls bleibt er deaktiviert.
+  - Updates und Neuinstallationen eines bereits vorhandenen Mods (über das **!**-Badge, ↻ Neu installieren oder **Alle aktualisieren**) behalten immer den aktuellen Aktiv-/Inaktiv-Status des Mods, unabhängig von dieser Einstellung.
 - **Zum Tab „Mod-Aktivierung“ springen** – standardmäßig aktiviert – Wenn diese Option aktiviert ist, springt die App nach der Installation einer Mod/einer Sammlung zum Tab „Mod-Aktivierung“, wobei der neu installierte Mod bzw. die Mod-Sammlung bereits ausgewählt ist. Deaktiviere diese Option, damit nach der Installation über den „Mod-Browser“ oder „Sammlungen“ kein Tab-Wechsel erfolgt.
 
 #### Spieldateien

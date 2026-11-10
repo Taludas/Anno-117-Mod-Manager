@@ -185,6 +185,7 @@ The primary tab for managing which mods are active when you launch the game.
 - Mod names are coloured **red** for conflicts, **orange** for missing dependencies or deprecation.
 - Sub-mods (child folders inside a mod) appear indented below their parent and cannot be uninstalled on their own.
 - At startup the app checks mod.io for available updates for all your subscribed mods in the background. The gold **!** badge disappears as soon as you install the update.
+- **Update all** - when updates are available, a gold **! Update all (N)** button appears next to the mod counter. It installs every update in one go: one progress window, then a single summary. Each mod keeps its active/inactive state, newly required mods are installed (and switched on if the mod needing them is active), and if an update fails, the previous version of that mod is restored.
 
 #### Sorting & Filtering
 
@@ -420,6 +421,7 @@ The Settings tab is scrollable — use the mouse wheel or the scrollbar on the r
   - *Always activate* — newly installed mods are enabled immediately.
   - *Always deactivate* — mods are added to the list but left disabled.
   - *Follow current state* — if the mod was already active (e.g. a reinstall or update), it stays active; otherwise it stays disabled.
+  - Updates and reinstalls of a mod you already have (the **!** badge, ↻ reinstall or **Update all**) always keep the mod's current active/inactive state, whatever this is set to.
 - **Jump to Activation behaviour** - enabled by default - if the option is enabled, the app jumps to the Mod Activation tab with the newly installed mod/mod collection selected. Disable to not jump tabs after installing something from the Mod Browser/Collections tab.
 
 #### Game Files
