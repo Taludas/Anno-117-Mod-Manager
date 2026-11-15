@@ -8534,9 +8534,37 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     _ico_cp = load_icon("colorpicker_btn", (24, 24))
                     btn_color = tk.Button(input_frame, text="" if _ico_cp else "🎨", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", image=_ico_cp, compound="center" if _ico_cp else "none")
                     if _ico_cp: btn_color.image = _ico_cp
-                    btn_color.pack(side="left", padx=10)
+                    btn_color.pack(side="left", padx=(10, 6))
                     self._bind_hover(btn_color, BG_MAIN, BG_HOVER)
                     self._attach_tooltip(btn_color, T(1999101271))
+
+                    # Live colour preview shown directly to the right of the picker button.
+                    color_preview = tk.Label(
+                        input_frame,
+                        text="",
+                        bg="#ffffff",
+                        width=4,
+                        height=1,
+                        relief="sunken",
+                        bd=1,
+                    )
+                    color_preview.pack(side="left", ipady=4)
+
+                    def _update_color_preview(raw_value, preview=color_preview):
+                        try:
+                            val = int(raw_value) & 0xFFFFFFFF
+                            r = (val >> 16) & 255
+                            g = (val >> 8) & 255
+                            b = val & 255
+                            preview.config(bg=f"#{r:02x}{g:02x}{b:02x}")
+                        except (TypeError, ValueError):
+                            preview.config(bg=BG_MAIN)
+
+                    _update_color_preview(entry_var.get())
+
+                    def _sync_color_preview(*_, v=entry_var):
+                        _update_color_preview(v.get())
+                    entry_var.trace_add("write", _sync_color_preview)
 
                     def _open_color_picker(v=entry_var, k=opt_key):
                         try:
