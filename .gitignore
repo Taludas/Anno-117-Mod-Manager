@@ -24,6 +24,7 @@ __pycache__/
 *.manifest
 *.spec
 build/
+dist/
 
 # PyCharm
 .idea/
