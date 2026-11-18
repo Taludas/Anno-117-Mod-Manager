@@ -8534,11 +8534,68 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     _ico_cp = load_icon("colorpicker_btn", (24, 24))
                     btn_color = tk.Button(input_frame, text="" if _ico_cp else "🎨", font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, cursor="hand2", relief="raised", image=_ico_cp, compound="center" if _ico_cp else "none")
                     if _ico_cp: btn_color.image = _ico_cp
-                    btn_color.pack(side="left", padx=10)
+                    btn_color.pack(side="left", padx=(10, 6))
                     self._bind_hover(btn_color, BG_MAIN, BG_HOVER)
                     self._attach_tooltip(btn_color, T(1999101271))
 
-                    def _open_color_picker(v=entry_var, k=opt_key):
+                    # Live colour preview shown directly to the right of the picker button.
+                    color_preview = tk.Label(
+                        input_frame,
+                        text="",
+                        bg="#ffffff",
+                        width=4,
+                        height=1,
+                        relief="sunken",
+                        bd=1,
+                    )
+                    color_preview.pack(side="left", ipady=4)
+
+                    def _update_color_preview(raw_value, preview=color_preview):
+                        try:
+                            val = int(raw_value) & 0xFFFFFFFF
+                            r = (val >> 16) & 255
+                            g = (val >> 8) & 255
+                            b = val & 255
+                            preview.config(bg=f"#{r:02x}{g:02x}{b:02x}")
+                        except (TypeError, ValueError):
+                            preview.config(bg=BG_MAIN)
+
+                    _update_color_preview(entry_var.get())
+
+                    # Update from actual Entry keyboard/edit events. This is intentionally
+                    # independent from StringVar traces so manual typing, paste and deletion
+                    # repaint the preview reliably on every edit.
+                    def _refresh_preview_from_entry(event=None, v=entry_var, preview=color_preview):
+                        def _apply():
+                            _update_color_preview(v.get(), preview)
+                            preview.update_idletasks()
+                        preview.after_idle(_apply)
+
+                    entry.bind("<KeyRelease>", _refresh_preview_from_entry, add="+")
+                    entry.bind("<<Paste>>", _refresh_preview_from_entry, add="+")
+                    entry.bind("<<Cut>>", _refresh_preview_from_entry, add="+")
+                    entry.bind("<FocusOut>", _refresh_preview_from_entry, add="+")
+
+                    # Enter is also an explicit commit point for a manually entered ARGB value.
+                    # Refresh synchronously here so the preview always changes immediately when
+                    # the value is confirmed with Enter, in addition to saving via the existing
+                    # <Return> handler above.
+                    def _refresh_preview_on_enter(event=None, v=entry_var, preview=color_preview, ui=update_insight):
+                        value_text = v.get().strip()
+                        _update_color_preview(value_text, preview)
+                        preview.update_idletasks()
+                        ui(value_text)
+
+                    entry.bind("<Return>", _refresh_preview_on_enter, add="+")
+                    entry.bind("<KP_Enter>", _refresh_preview_on_enter, add="+")
+
+                    def _sync_color_preview(*_, v=entry_var, preview=color_preview):
+                        _update_color_preview(v.get(), preview)
+                        preview.update_idletasks()
+                    # Keep the Tcl trace registered for programmatic changes as well.
+                    color_preview._trace_id = entry_var.trace_add("write", _sync_color_preview)
+
+                    def _open_color_picker(v=entry_var, k=opt_key, preview=color_preview, ui=update_insight):
                         try:
                             # Anno uses signed 32-bit ARGB integers. Extract R, G, B for the picker.
                             val = int(v.get())
@@ -8560,8 +8617,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             new_val = (a << 24) | rgb_int
                             signed_val = ctypes.c_int32(new_val).value
 
-                            v.set(str(signed_val))
-                            self._save_single_option(mod['id'], k, str(signed_val))
+                            value_text = str(signed_val)
+                            v.set(value_text)
+                            # Update explicitly after the modal colour dialog closes. This avoids
+                            # relying only on the Tk variable trace for immediate repainting.
+                            _update_color_preview(value_text, preview)
+                            preview.update_idletasks()
+                            ui(value_text)
+                            self._save_single_option(mod['id'], k, value_text)
 
                     btn_color.config(command=_open_color_picker)
 
