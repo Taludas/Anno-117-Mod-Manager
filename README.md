@@ -219,6 +219,8 @@ Presets save and restore your full activation state (which mods are on or off). 
 - The **Active Profile** dropdown at the top lists all saved presets plus two built-in system presets:
   - **Vanilla** — deactivates every installed mod in one click. Cannot be deleted.
   - **Default** — activates every installed mod. Cannot be deleted.
+  - The game's own `default.txt` profile is listed under its in-game name with the file name added, e.g. **Mod Profile (default.txt)**, so it can't be confused with the app's **Default**.
+- If there is no mod list at all yet (fresh install), the app creates **Default** on first start, so ticking mods works right away.
 - **Save** - saves the current state back into the active preset in-place. The previous version is automatically backed up as `<name>.bak`. Only shown when a named preset is active.
 - **Save As New** - saves the current state under a new name.
 - **Delete** - permanently removes the selected preset. System presets cannot be deleted.
@@ -237,10 +239,12 @@ Browse and install mods directly from mod.io without leaving the app. Requires a
 - **Tag filter** - dropdown populated from the game's tag list on mod.io; filter by any single tag.
 - **Subscribed** toggle - show only mods you are currently subscribed to.
 - The **✕** button resets both the search text and the tag filter simultaneously.
+- Search, sort, tag and Subscribed filter are kept while the app is open - after an install that jumps to the Activation tab, going back to the Mod Browser brings you back to the same filtered list.
+- **Install missing (N)** - appears next to the result counter when you are subscribed to mods on mod.io (e.g. via the website) that are not installed yet. One click lists them, then downloads and installs all of them in one go: one progress window, a **Stop after this mod** button, and a single summary at the end. Missing required mods are installed too, new mods are activated according to your settings, and a mod whose folder already exists is left untouched and only linked to its mod.io entry.
 
 #### Mod Tiles
 
-Each tile shows the mod thumbnail, name, author, download count, rating and file size. Clicking a tile opens the **detail popup** with the full description, gallery images and an **Install Mod** button. If you have subscribed outside of the Mod Browser to mods on mod.io, their subscribed status will be automatically synced, and a golden "!" is warning you, if you are subscribed, but do not have a local copy of the mod installed. Reinstall it via the ↻ Reinstall button and the warning vanishes. Same is true if you had the mod installed and subscribed through the Mod Browser but have cancelled the subscription outside it on mod.io - the "!" will prompt you to resubscribe to get the latest version and updates of the mod.
+Each tile shows the mod thumbnail, name, author, download count, rating and file size. Mods you already have get a green border and a green **✔ Installed** badge on the picture. Clicking a tile opens the **detail popup** with the full description, gallery images and an **Install Mod** button. If you have subscribed outside of the Mod Browser to mods on mod.io, their subscribed status will be automatically synced, and a golden "!" is warning you, if you are subscribed, but do not have a local copy of the mod installed. Reinstall it via the ↻ Reinstall button and the warning vanishes. Same is true if you had the mod installed and subscribed through the Mod Browser but have cancelled the subscription outside it on mod.io - the "!" will prompt you to resubscribe to get the latest version and updates of the mod.
 
 #### Installation Flow
 
@@ -250,7 +254,7 @@ Clicking **Install** on a tile or in the detail popup:
 2. Downloads the mod archive to a temporary folder (cleaned up automatically after install).
 3. Extracts and installs the mod into your configured mod folder.
 4. Subscribes your mod.io account so you receive future updates in the News feed.
-5. Switches to the Activation tab — the mod.io icon (⚙) appears next to the new mod's name immediately.
+5. Switches to the Activation tab — the mod.io icon (⚙) appears next to the new mod's name immediately. To stay in the Mod Browser instead (handy when installing several mods), turn off **Jump to Activation** in Settings.
 
 Installed mods show a **↻ Reinstall** button (for updates or file repair) and a **★ Subscribed** button that turns into **Unsubscribe** on hover.
 
@@ -494,6 +498,8 @@ Two system presets are always available and cannot be deleted:
 - **Vanilla** — deactivates every installed mod.
 - **Default** — activates every installed mod.
 
+The game's own `profiles/default.txt` is a normal profile and appears as e.g. **Mod Profile (default.txt)**, its in-game name plus the file name. Profile names are matched regardless of upper/lower case, the way the game does it, so `ActiveProfile anno 117 no mods active profile` in `profile.txt` is still recognised as **Vanilla**. Without any profile (fresh install, or `profile.txt` pointing at a deleted file) the app creates **Default** and points `profile.txt` at it.
+
 When you follow a collection a preset named `<Collection Name> (Collection)` is created automatically.
 
 > **Still on an older game version?** If your install doesn't have the `mods/profiles/` folder yet, the app automatically falls back to the classic single `active-profile.txt` file and keeps named presets in its own `presets/` folder (see [Mod Storage Locations](#mod-storage-locations)) - nothing to configure, it works either way. The first time the app detects the newer format, any presets you already had saved are copied over automatically so nothing is lost.
@@ -559,7 +565,10 @@ These tabs require a mod.io API key. Go to Settings → mod.io Integration, ente
 The mod lists another mod as a hard requirement in its `modinfo.json` that is not installed. Install the dependency first, or use the **Activate Missing** button in the dependency dialog.
 
 **A mod installed from the browser shows no mod.io icon / shows Uninstall instead of Unsubscribe**
-This can happen if the mod's name on mod.io differs significantly from the name in its `modinfo.json`. The app tries several fuzzy-matching strategies to link the two. If it consistently fails, please open an issue with the mod name.
+This can happen if the mod's name on mod.io differs significantly from the name in its `modinfo.json`. Mods installed through the app are linked precisely by their ModID. For mods installed another way, the app compares the mod.io name and URL name with each installed mod's English name, ModID and folder name (ignoring tags like `[Gameplay]` or `(Author)`), and only links a mod when exactly one installed mod fits. If it consistently fails, please open an issue with the mod name.
+
+**Mods I subscribed to on mod.io show as "not subscribed" or not installed**
+The app reads all of your mod.io subscriptions, however many there are, each time you open the Mod Browser. Subscribed mods that aren't installed yet can be installed in one go with **Install missing (N)** in the Mod Browser header.
 
 **Something went wrong and the app misbehaves**
 Check the debug log at Settings → View Debug Log. It captures all `print` output and exceptions from the current session. Open an issue and attach your log with a description of what you did to get it.

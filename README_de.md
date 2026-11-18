@@ -216,6 +216,8 @@ Presets speichern und stellen deinen vollständigen Aktivierungsstatus wieder he
 - Das **Aktives Profil**-Dropdown oben listet alle gespeicherten Presets sowie zwei integrierte System-Presets auf:
   - **Keine Mods aktiv** — deaktiviert jeden installierten Mod mit einem Klick. Kann nicht gelöscht werden.
   - **Standard** — aktiviert jeden installierten Mod. Kann nicht gelöscht werden.
+  - Das spieleigene Profil `default.txt` erscheint unter seinem Namen im Spiel plus Dateiname, z. B. **Mod Profile (default.txt)**, damit es nicht mit dem **Standard** der App verwechselt wird.
+- Gibt es noch gar keine Mod-Liste (Neuinstallation), legt die App beim ersten Start **Standard** an, damit das Anhaken von Mods sofort funktioniert.
 - **Speichern** – speichert den aktuellen Status direkt in das aktive Preset zurück. Die vorherige Version wird automatisch als `<Name>.bak` gesichert. Wird nur angezeigt, wenn ein benanntes Preset aktiv ist.
 - **Als neu speichern** – speichert den aktuellen Status unter einem neuen Namen.
 - **Löschen** – entfernt das ausgewählte Preset dauerhaft. System-Presets können nicht gelöscht werden.
@@ -234,10 +236,12 @@ Stöbere und installiere Mods direkt von mod.io, ohne die App zu verlassen. Erfo
 - **Tag-Filter** – Dropdown mit der Tag-Liste des Spiels von mod.io; nach einem einzelnen Tag filtern.
 - **Abonniert**-Schalter – zeigt nur Mods an, die du aktuell abonniert hast.
 - Die **✕**-Schaltfläche setzt gleichzeitig den Suchtext und den Tag-Filter zurück.
+- Suche, Sortierung, Tag und Abonniert-Filter bleiben erhalten, solange die App offen ist – springt eine Installation zum Aktivierungs-Tab, landest du beim Zurückwechseln wieder in derselben gefilterten Liste.
+- **Fehlende installieren (N)** – erscheint neben dem Ergebniszähler, wenn du auf mod.io (z. B. über die Webseite) Mods abonniert hast, die noch nicht installiert sind. Ein Klick listet sie auf und lädt und installiert dann alle in einem Rutsch: ein Fortschrittsfenster, eine Schaltfläche **Nach dieser Mod anhalten** und am Ende eine einzige Zusammenfassung. Fehlende benötigte Mods werden mitinstalliert, neue Mods gemäß deinen Einstellungen aktiviert, und eine Mod, deren Ordner schon existiert, bleibt unangetastet und wird nur mit ihrem mod.io-Eintrag verknüpft.
 
 #### Mod-Kacheln
 
-Jede Kachel zeigt das Mod-Vorschaubild, Name, Autor, Download-Anzahl, Bewertung und Dateigröße. Ein Klick auf eine Kachel öffnet das **Detail-Popup** mit der vollständigen Beschreibung, Galeriebildern und einer **Mod installieren**-Schaltfläche. Wenn du Mods auf mod.io außerhalb des Mod-Browsers abonniert hast, wird der Abonnementstatus automatisch synchronisiert, und ein goldenes „!“ warnt dich, falls du das Mod abonniert hast, aber keine lokale Kopie davon installiert ist. Installiere die Mod über die Schaltfläche ↻ Neu installieren neu, und die Warnung verschwindet. Das Gleiche gilt, wenn du den Mod über den Mod-Browser installiert und abonniert hast, das Abonnement aber außerhalb davon auf mod.io gekündigt hast – das „!“ fordert dich auf, das Abonnement erneut abzuschließen, um die neueste Version und Updates des Mods zu erhalten.
+Jede Kachel zeigt das Mod-Vorschaubild, Name, Autor, Download-Anzahl, Bewertung und Dateigröße. Bereits vorhandene Mods erhalten einen grünen Rahmen und ein grünes **✔ Installiert**-Abzeichen auf dem Bild. Ein Klick auf eine Kachel öffnet das **Detail-Popup** mit der vollständigen Beschreibung, Galeriebildern und einer **Mod installieren**-Schaltfläche. Wenn du Mods auf mod.io außerhalb des Mod-Browsers abonniert hast, wird der Abonnementstatus automatisch synchronisiert, und ein goldenes „!“ warnt dich, falls du das Mod abonniert hast, aber keine lokale Kopie davon installiert ist. Installiere die Mod über die Schaltfläche ↻ Neu installieren neu, und die Warnung verschwindet. Das Gleiche gilt, wenn du den Mod über den Mod-Browser installiert und abonniert hast, das Abonnement aber außerhalb davon auf mod.io gekündigt hast – das „!“ fordert dich auf, das Abonnement erneut abzuschließen, um die neueste Version und Updates des Mods zu erhalten.
 
 #### Installationsablauf
 
@@ -247,7 +251,7 @@ Ein Klick auf **Installieren** in einer Kachel oder im Detail-Popup:
 2. Lädt das Mod-Archiv in einen temporären Ordner herunter (wird nach der Installation automatisch bereinigt).
 3. Entpackt und installiert die Mod in deinen konfigurierten Mod-Ordner.
 4. Abonniert sie über deinen mod.io-Account, damit du zukünftige Updates im News-Feed erhältst.
-5. Wechselt zum Aktivierungs-Tab — das mod.io-Icon (⚙) erscheint sofort neben dem Namen des neuen Mods.
+5. Wechselt zum Aktivierungs-Tab — das mod.io-Icon (⚙) erscheint sofort neben dem Namen des neuen Mods. Um stattdessen im Mod-Browser zu bleiben (praktisch, wenn du mehrere Mods installierst), schalte in den Einstellungen **Zum Tab „Mod-Aktivierung“ springen** aus.
 
 Installierte Mods zeigen eine **↻ Neu installieren**-Schaltfläche (für Updates oder Dateireparatur) und eine **★ Abonniert**-Schaltfläche, die beim Hovern zu **Abonnement beenden** wird.
 
@@ -491,6 +495,8 @@ Zwei System-Presets sind immer verfügbar und können nicht gelöscht werden:
 - **Keine Mods aktiv** — deaktiviert jeden installierten Mod.
 - **Standard** — aktiviert jeden installierten Mod.
 
+Das spieleigene `profiles/default.txt` ist ein normales Profil und erscheint z. B. als **Mod Profile (default.txt)** – sein Name im Spiel plus Dateiname. Profilnamen werden wie im Spiel ohne Rücksicht auf Groß-/Kleinschreibung erkannt, `ActiveProfile anno 117 no mods active profile` in der `profile.txt` gilt also weiterhin als **Keine Mods aktiv**. Ohne jedes Profil (Neuinstallation, oder `profile.txt` verweist auf eine gelöschte Datei) legt die App **Standard** an und lässt die `profile.txt` darauf zeigen.
+
 Wenn du einer Sammlung folgst, wird automatisch ein Preset namens `<Sammlungsname> (Sammlung)` erstellt.
 
 > **Noch auf einer älteren Spielversion?** Falls dein Mod-Ordner den Unterordner `mods/profiles/` noch nicht besitzt, greift die App automatisch auf die klassische einzelne Datei `active-profile.txt` zurück und speichert benannte Presets stattdessen in ihrem eigenen `presets/`-Ordner (siehe [Mod-Speicherorte](#mod-speicherorte)) – du musst nichts einstellen, es funktioniert in beiden Fällen automatisch. Sobald die App das neue Format erkennt, werden bereits gespeicherte Presets einmalig automatisch übernommen, damit nichts verloren geht.
@@ -557,7 +563,10 @@ Diese Tabs erfordern einen mod.io-API-Schlüssel. Gehe zu Einstellungen → mod.
 Der Mod listet in seiner `modinfo.json` einen anderen Mod als harte Anforderung auf, der nicht installiert ist. Installiere zuerst die Abhängigkeit oder nutze die **Fehlende aktivieren**-Schaltfläche im Abhängigkeits-Dialog.
 
 **Ein aus dem Browser installierter Mod zeigt kein mod.io-Icon / zeigt Deinstallieren statt Abonnement beenden**
-Das kann passieren, wenn der Name des Mods auf mod.io erheblich vom Namen in seiner `modinfo.json` abweicht. Die App versucht mehrere Fuzzy-Matching-Strategien, um die beiden zu verknüpfen. Wenn es dauerhaft fehlschlägt, öffne bitte ein Issue mit dem Mod-Namen.
+Das kann passieren, wenn der Name des Mods auf mod.io erheblich vom Namen in seiner `modinfo.json` abweicht. Über die App installierte Mods werden exakt über ihre ModID verknüpft. Bei anders installierten Mods vergleicht die App den mod.io-Namen und den Namen in der mod.io-URL mit dem englischen Namen, der ModID und dem Ordnernamen jeder installierten Mod (ohne Zusätze wie `[Gameplay]` oder `(Autor)`) und verknüpft nur, wenn genau eine installierte Mod passt. Wenn es dauerhaft fehlschlägt, öffne bitte ein Issue mit dem Mod-Namen.
+
+**Auf mod.io abonnierte Mods erscheinen als „nicht abonniert“ oder nicht installiert**
+Die App liest bei jedem Öffnen des Mod-Browsers alle deine mod.io-Abonnements ein, egal wie viele es sind. Abonnierte, aber noch nicht installierte Mods lassen sich mit **Fehlende installieren (N)** im Kopf des Mod-Browsers in einem Rutsch installieren.
 
 **Etwas ist schiefgelaufen und die App verhält sich komisch**
 Prüfe das Debug-Log unter Einstellungen → Debug-Log anzeigen. Es erfasst alle `print`-Ausgaben und Ausnahmen der aktuellen Sitzung. Öffne ein Issue und hänge dein Log mit einer Beschreibung an, was du getan hast, um es zu reproduzieren.

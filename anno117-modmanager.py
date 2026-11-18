@@ -1086,6 +1086,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if not os.path.exists(self.active_profile_path) and not getattr(self, "custom_docs_path", ""):
             self._find_or_prompt_docs_folder()
 
+        # No mod list at all yet (fresh install): start with "Default" so ticking mods works right away
+        self._ensure_active_profile()
+
         if self.use_mod_browser is None:
             # Custom mod.io-branded prompt with logo
             win_w, win_h = 520, 420
@@ -1321,6 +1324,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 mod_entry = {
                     "id": m_id,
                     "loader_sort_key": loader_sort_key,
+                    "name_en": _en_name,
                     "name": get_localized("ModName", get_localized("Name", m_id)),
                     "category": category_display,
                     "version": str(data.get("Version", "1.0.0")),
@@ -1457,8 +1461,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 # clean it up in place instead of copying to a separate library file.
                 backup_path = self.active_profile_path + ".bak.txt"
                 shutil.copy2(self.active_profile_path, backup_path)
+                shown_name = self._read_display_name(self.active_profile_path) or name
                 clean_lines = self._read_clean_profile_lines(self.active_profile_path)
-                clean_lines = self._insert_display_name(clean_lines, name)
+                clean_lines = self._insert_display_name(clean_lines, shown_name)
                 with open(self.active_profile_path, 'w', encoding='utf-8') as f:
                     f.writelines(clean_lines)
             else:
@@ -1596,9 +1601,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         self.available_presets = ["Vanilla", "Default"] + sorted(files)
 
+    def _selected_preset(self):
+        """The profile name behind the dropdown's current text (see _profile_display)."""
+        shown = self.preset_combo.get()
+        return getattr(self, '_preset_display_map', {}).get(shown, shown)
+
     def on_preset_dropdown_change(self, event):
         """Fires when the user picks a different entry in the preset combobox. Switches to the Default profile or loads the selected named preset and refreshes the view."""
-        selection = self.preset_combo.get()
+        selection = self._selected_preset()
 
         if selection == "Vanilla":
             self._reset_to_no_mods_profile()
@@ -1607,8 +1617,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self.reset_to_default_profile()
             self._imperial_alert(T(1999101190), T(1999101223))
         else:
-            preset_dir = self.profiles_dir if self.uses_profiles_scheme else self.presets_dir
-            preset_path = os.path.join(preset_dir, f"{selection}.txt")
+            preset_path = (self._profile_file(selection) if self.uses_profiles_scheme
+                           else os.path.join(self.presets_dir, f"{selection}.txt"))
             if os.path.exists(preset_path):
                 self._apply_preset_with_full_coverage(preset_path, selection)
                 self.current_profile_name = selection
@@ -1675,12 +1685,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
     def delete_preset(self):
         """Asks for confirmation then permanently deletes the currently selected named preset file, reverts the active profile to Default and re-renders the activation tab."""
-        selection = self.preset_combo.get()
+        selection = self._selected_preset()
         if selection in ("Vanilla", "Default"):
             self._imperial_alert(T(1999101191), T(1999101224), is_error=True)
             return
 
-        msg = T(1999101350, selection)
+        msg = T(1999101350, self._profile_display(selection))
         confirm = self._imperial_question(T(1999101281), msg)
 
         if confirm:
@@ -1721,9 +1731,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         else:
             self._imperial_alert(T(1999101192), T(1999101225), is_error=True)
 
-    def run_install_logic(self, zip_path, silent=False, errors=None):
+    def run_install_logic(self, zip_path, silent=False, errors=None, kept_existing=None):
         """Validates the mod storage path, extracts the dropped or selected .zip archive into the correct mod folder (handling overwrites and conflicts), activates the mod if the setting is on and refreshes the UI. Returns True if the mod's files actually made it onto disk, False otherwise - callers that removed the mod's previous version beforehand use this to decide whether to discard that backup or restore it.
-        With an errors list, error messages are appended to it instead of being shown (used by batch updates)."""
+        With an errors list, error messages are appended to it instead of being shown (used by batch updates).
+        With a kept_existing list, a mod folder that already exists is left as it is instead of asking to overwrite
+        it: its name is appended to the list, the folder is linked to the pending mod.io entry and True is returned."""
         def _fail(title, msg):
             if errors is not None:
                 errors.append(msg)
@@ -1763,7 +1775,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     return any("/".join(parts[:i]) in dir_set for i in range(len(parts)))
                 independent_dirs = sorted({d for d in modinfo_dirs if not _has_mod_above(d)})
                 if len(independent_dirs) > 1:
-                    return self._install_multiple_mods(zref, independent_dirs, target_base_dir, silent)
+                    return self._install_multiple_mods(zref, independent_dirs, target_base_dir, silent, kept_existing)
 
                 if mod_internal_path is None:
                     return _fail(T(1999101194), T(1999101227))
@@ -1774,6 +1786,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     folder_name = os.path.basename(zip_path).replace(".zip", "")
 
                 final_destination = os.path.join(target_base_dir, folder_name)
+
+                if os.path.exists(final_destination) and kept_existing is not None:
+                    # Already installed under a name the matcher didn't recognise - link it, don't replace it
+                    kept_existing.append(folder_name)
+                    existing_id = self._read_mod_id(final_destination)
+                    if getattr(self, '_pending_modio_mapping', None) and existing_id:
+                        self._subscription_modio_map[existing_id] = str(self._pending_modio_mapping[0])
+                        self._save_subscription_map()
+                    self._pending_modio_mapping = None
+                    return True
 
                 if os.path.exists(final_destination):
                     msg = T(1999101351, folder_name)
@@ -1794,18 +1816,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 if os.path.exists(temp_extract):
                     shutil.rmtree(temp_extract)
 
-                new_mod_id = None
-                for info_file in ["modinfo.json", "modinfo.jsonc"]:
-                    info_path = os.path.join(final_destination, info_file)
-                    if os.path.exists(info_path):
-                        try:
-                            content = self._read_text_file_robust(info_path)
-                            content = self.strip_jsonc_comments(content)
-                            info_data = json.loads(content)
-                            new_mod_id = _norm_mod_id(info_data.get("ModID") or "") or None
-                        except:
-                            pass
-                        break
+                new_mod_id = self._read_mod_id(final_destination)
 
                 if new_mod_id:
                     # Refresh metadata now so the new mod's deps are available for the incompatibility check before we decide to activate it.
@@ -1854,11 +1865,23 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         except Exception as e:
             return _fail(T(1999101282), T(1999101390, e))
 
-    def _install_multiple_mods(self, zref, mod_dirs, target_base_dir, silent=False):
+    def _read_mod_id(self, mod_folder):
+        """The normalised ModID from a mod folder's modinfo.json/.jsonc, or None."""
+        for info_file in ("modinfo.json", "modinfo.jsonc"):
+            info_path = os.path.join(mod_folder, info_file)
+            if os.path.exists(info_path):
+                try:
+                    data = json.loads(self.strip_jsonc_comments(self._read_text_file_robust(info_path)))
+                    return _norm_mod_id(data.get("ModID") or "") or None
+                except Exception:
+                    return None
+        return None
+
+    def _install_multiple_mods(self, zref, mod_dirs, target_base_dir, silent=False, kept_existing=None):
         """Installs an archive that bundles several independent mods side by side (each folder has
         its own modinfo.json and none sits above them). Each folder - sub-mods included - is
         installed like a single mod; one summary message at the end. Returns True if at least one
-        mod was installed."""
+        mod was installed. With a kept_existing list, existing folders are skipped instead of asking."""
         temp_extract = os.path.join(target_base_dir, "_temp_ext")
         if os.path.exists(temp_extract):
             shutil.rmtree(temp_extract, ignore_errors=True)
@@ -1869,26 +1892,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 folder_name = os.path.basename(mod_dir)
                 final_destination = os.path.join(target_base_dir, folder_name)
                 if os.path.exists(final_destination):
+                    if kept_existing is not None:
+                        kept_existing.append(folder_name)
+                        continue
                     if not self._imperial_question(T(1999101210), T(1999101351, folder_name)):
                         continue
                     shutil.rmtree(final_destination)
                 shutil.move(os.path.join(temp_extract, mod_dir), final_destination)
-
-                mod_id = None
-                for info_file in ("modinfo.json", "modinfo.jsonc"):
-                    info_path = os.path.join(final_destination, info_file)
-                    if os.path.exists(info_path):
-                        try:
-                            mod_id = _norm_mod_id(json.loads(self.strip_jsonc_comments(self._read_text_file_robust(info_path))).get("ModID") or "") or None
-                        except Exception:
-                            pass
-                        break
-                installed.append((folder_name, mod_id))
+                installed.append((folder_name, self._read_mod_id(final_destination)))
         finally:
             if os.path.exists(temp_extract):
                 shutil.rmtree(temp_extract, ignore_errors=True)
 
         if not installed:
+            if kept_existing:
+                self._pending_modio_mapping = None
+                return True
             return False
 
         # Activate each like a single install: updates keep their state, new mods follow the setting
@@ -2530,7 +2549,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
     def _check_modio_version_updates(self):
         """Background worker that runs once at startup. Compares the locally installed version (from modinfo.json) against the latest version on mod.io for each subscribed mod. Populates self._modio_update_available with local mod IDs that have a newer version available, then re-renders the activation tab."""
-        if not self.modio_token or not self._subscription_modio_map:
+        if not self.modio_token:
             return
         try:
             headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
@@ -2538,12 +2557,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             ignored = set(self.settings.get("version_check_ignored", []))
             # Build reverse map: modio_id → local_mod_id
             reverse_map = {v: k for k, v in self._subscription_modio_map.items()}
-            # Fetch latest info for subscribed mods in one call
-            url = f"{MODIO_BASE_URL}/me/subscribed?game_id=11358&_limit=100"
-            res = requests.get(url, headers=headers, timeout=15)
-            if res.status_code != 200:
+            # Latest info for all subscribed mods (paged, 100 per request)
+            subscribed = self._fetch_all_subscribed(headers)
+            if subscribed is None:
                 return
-            for mod in res.json().get('data', []):
+            self._subscribed_modio_mods = subscribed
+            if self._reconcile_modio_map(subscribed):
+                reverse_map = {v: k for k, v in self._subscription_modio_map.items()}
+            for mod in subscribed:
                 modio_id = str(mod.get('id', ''))
                 local_id = reverse_map.get(modio_id)
                 if not local_id:
@@ -3029,8 +3050,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         tk.Label(preset_row, text=T(1999101019), font=FONT_BOLD_SMALL, bg=BG_SECTION, fg=FG_DIM).pack(side="left")
 
         self.refresh_presets_list()
-        self.preset_combo = ttk.Combobox(preset_row, values=self.available_presets, state="readonly", font=FONT_SMALL, width=25)
-        self.preset_combo.set(self.current_profile_name)
+        self._preset_display_map = {self._profile_display(p): p for p in self.available_presets}
+        self.preset_combo = ttk.Combobox(preset_row, values=list(self._preset_display_map), state="readonly", font=FONT_SMALL, width=25)
+        self.preset_combo.set(self._profile_display(self.current_profile_name))
         self.preset_combo.pack(side="left", padx=10)
         self.preset_combo.bind("<<ComboboxSelected>>", self.on_preset_dropdown_change)
 
@@ -3043,7 +3065,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         btn_newpreset.pack(side="left", padx=2)
         self._bind_hover(btn_newpreset, "#2e7d32", "#36943a")
         if _is_named_preset:
-            self._attach_tooltip(btn_newpreset, T(1999101494, self.current_profile_name))
+            self._attach_tooltip(btn_newpreset, T(1999101494, self._profile_display(self.current_profile_name)))
 
         _ico_del = load_icon("delete_preset", (22, 22))
         btn_deletepreset = tk.Button(preset_row, text=T(1999101184), font=FONT_XSMALL, bg="#8b0000", fg=FG_MAIN, cursor="hand2", command=self.delete_preset, relief="raised", padx=10, image=_ico_del, compound="left" if _ico_del else "none")
@@ -3672,7 +3694,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             else:
                                 self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101472), is_error=True))
                         except Exception as ex:
-                            self.after(0, lambda: self._imperial_alert(T(1999101189), str(ex), is_error=True))
+                            self.after(0, lambda ex=ex: self._imperial_alert(T(1999101189), str(ex), is_error=True))
                     if self._imperial_question(T(1999101213), T(1999101359, mn)):
                         # Remove from update set immediately so the badge disappears
                         self._modio_update_available.discard(lid)
@@ -3792,7 +3814,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     err = res.json().get('error', {}).get('message', 'Unknown Error')
                     self.after(0, lambda: self._imperial_alert(T(1999101298), T(1999101380, err), is_error=True))
             except Exception as e:
-                self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101400, e), is_error=True))
+                self.after(0, lambda e=e: self._imperial_alert(T(1999101189), T(1999101400, e), is_error=True))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -3943,7 +3965,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                             else:
                                 self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101472), is_error=True))
                         except Exception as e:
-                            self.after(0, lambda: self._imperial_alert(T(1999101189), str(e), is_error=True))
+                            self.after(0, lambda e=e: self._imperial_alert(T(1999101189), str(e), is_error=True))
                     if self._imperial_question(T(1999101213), T(1999101359, mn)):
                         threading.Thread(target=_fetch_and_install, daemon=True).start()
                 _ico_rei = load_icon("reinstall", (20, 20))
@@ -4226,6 +4248,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
     def toggle_mod_status(self, mod_id, should_be_active):
         """Reads the active-profile.txt line by line and comments or uncomments the entry for the given mod_id, writing the result back to disk."""
+        if not os.path.exists(self.active_profile_path):
+            self._ensure_active_profile()
         if not os.path.exists(self.active_profile_path):
             return
 
@@ -4854,11 +4878,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._migrate_presets_to_profiles()
             real_active_name = self._read_active_profile_name()
             active_name = real_active_name or "default"
-            self.active_profile_path = os.path.join(self.profiles_dir, f"{active_name}.txt")
+            self.active_profile_path = self._profile_file(active_name)
             if real_active_name:
                 # Reflect whatever the game/loader currently has active — it may have
                 # changed outside the app (native profile switcher, manual edit, etc.)
-                self.current_profile_name = self._label_for_profile_slug(real_active_name)
+                # (spelled like the file on disk, so it matches its dropdown entry)
+                label = self._label_for_profile_slug(real_active_name)
+                if label == real_active_name and os.path.exists(self.active_profile_path):
+                    label = os.path.splitext(os.path.basename(self.active_profile_path))[0]
+                self.current_profile_name = label
         else:
             self.active_profile_path = legacy_active_path
 
@@ -4924,11 +4952,57 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         return self._QUICK_PROFILE_SLUGS.get(label, label)
 
     def _label_for_profile_slug(self, slug):
-        """Reverse of _quick_profile_slug — maps an on-disk profile name back to its UI label, if it is one of the app's quick profiles."""
+        """Reverse of _quick_profile_slug — maps an on-disk profile name back to its UI label, if it is one of the app's quick profiles.
+        Case-insensitive: profile.txt may point at "anno 117 no mods active profile" (older app versions, or a hand edit)
+        and the game resolves it to the same file on Windows."""
         for label, mapped_slug in self._QUICK_PROFILE_SLUGS.items():
-            if mapped_slug == slug:
+            if mapped_slug.lower() == str(slug).strip().lower():
                 return label
         return slug
+
+    def _profile_file(self, name):
+        """Path of mods/profiles/<name>.txt, matching an existing file regardless of case."""
+        path = os.path.join(self.profiles_dir, f"{name}.txt")
+        if not os.path.exists(path) and os.path.isdir(self.profiles_dir):
+            wanted = f"{name}.txt".lower()
+            hit = next((f for f in os.listdir(self.profiles_dir) if f.lower() == wanted), None)
+            if hit:
+                path = os.path.join(self.profiles_dir, hit)
+        return path
+
+    def _profile_display(self, name):
+        """Dropdown text for a profile. The game's own profiles/default.txt is shown by its in-game name
+        (DisplayName) plus the file name, so it can't be mistaken for the app's "Default" (all mods active)."""
+        if (name in self._QUICK_PROFILE_SLUGS or not getattr(self, 'uses_profiles_scheme', False)
+                or str(name).lower() != "default"):
+            return name
+        return f"{self._read_display_name(self._profile_file(name)) or 'Mod Profile'} (default.txt)"
+
+    def _read_display_name(self, path):
+        """The value of a profile file's 'DisplayName <name>' line, or ""."""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if self._is_display_name_line(line):
+                        return line.strip()[len("DisplayName"):].strip()
+        except OSError:
+            pass
+        return ""
+
+    def _ensure_active_profile(self):
+        """Makes sure there is an active mod list the game actually loads. Without one (fresh install, or
+        profile.txt pointing at a deleted file) ticking mods had nothing to write to; the app's "Default"
+        list (all installed mods active) is created instead. If the list exists but profile.txt doesn't
+        point at it yet, the pointer is written - otherwise the game would start without any mods."""
+        if not getattr(self, 'uses_profiles_scheme', False):
+            return
+        try:
+            if not os.path.exists(self.active_profile_path):
+                self.reset_to_default_profile()
+            elif not self._read_active_profile_name():
+                self._write_active_profile_pointer(os.path.splitext(os.path.basename(self.active_profile_path))[0])
+        except Exception as e:
+            print(f"[profiles] Could not create the active profile: {e}")
 
     def _write_active_profile_pointer(self, name):
         """Writes/updates the 'ActiveProfile <name>' pointer in mods/profile.txt, preserving any existing header comments."""
@@ -4985,9 +5059,17 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         one active-profile.txt file is simply overwritten."""
         if self.uses_profiles_scheme:
             os.makedirs(self.profiles_dir, exist_ok=True)
-            target_path = os.path.join(self.profiles_dir, f"{name}.txt")
+            target_path = self._profile_file(name)
+            # Keep the name the game shows for an existing list (e.g. "Mod Profile" for default.txt)
+            shown_name = self._read_display_name(target_path) or name
+            lines = [l for l in lines if not self._is_display_name_line(l.lstrip("#"))]
+            out = []
+            for l in self._insert_display_name(lines, shown_name):
+                if not l.strip() and out and not out[-1].strip():
+                    continue  # no growing gaps when a list is applied again and again
+                out.append(l)
             with open(target_path, 'w', encoding='utf-8') as f:
-                f.writelines(self._insert_display_name(lines, name))
+                f.writelines(out)
             self._write_active_profile_pointer(name)
             self.active_profile_path = target_path
         else:
@@ -5236,8 +5318,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         self.wait_window(alert_win)
 
-    def _imperial_question(self, title, message):
-        """A themed replacement for askyesno."""
+    def _imperial_question(self, title, message, scrollable=False):
+        """A themed replacement for askyesno. scrollable=True shows the message in a scrollable text box (for long lists)."""
         quest_win = tk.Toplevel(self)
         quest_win.title(title)
 
@@ -5257,10 +5339,21 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         tk.Label(quest_win, text=title.upper(), font=FONT_TITLE, bg=BG_MAIN, fg=FG_GOLD).pack(pady=(25, 15))
 
-        tk.Label(quest_win, text=message, font=FONT_BODY, bg=BG_MAIN, fg=FG_MAIN, wraplength=420, justify="center").pack(pady=10, expand=True)
-
         btn_frame = tk.Frame(quest_win, bg=BG_MAIN)
-        btn_frame.pack(pady=25)
+        if scrollable:
+            btn_frame.pack(side="bottom", pady=20)
+            txt_frame = tk.Frame(quest_win, bg=BG_MAIN)
+            txt_frame.pack(fill="both", expand=True, padx=30)
+            scrollbar = ttk.Scrollbar(txt_frame, orient="vertical")
+            scrollbar.pack(side="right", fill="y")
+            txt = tk.Text(txt_frame, font=FONT_BODY, bg=BG_SECTION, fg=FG_MAIN, relief="flat", wrap="word", yscrollcommand=scrollbar.set, cursor="arrow", highlightthickness=0, padx=12, pady=8)
+            txt.insert("end", message)
+            txt.config(state="disabled")
+            txt.pack(side="left", fill="both", expand=True)
+            scrollbar.config(command=txt.yview)
+        else:
+            tk.Label(quest_win, text=message, font=FONT_BODY, bg=BG_MAIN, fg=FG_MAIN, wraplength=420, justify="center").pack(pady=10, expand=True)
+            btn_frame.pack(pady=25)
 
         result = {"ans": False}
 
@@ -5590,7 +5683,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 else:
                     self.after(0, lambda: self._update_legal_ui(txt_area, T(1999101447)))
             except Exception as e:
-                self.after(0, lambda: self._update_legal_ui(txt_area, T(1999101448, e)))
+                self.after(0, lambda e=e: self._update_legal_ui(txt_area, T(1999101448, e)))
 
         def on_close_viewer():
             view_win.grab_release()
@@ -5827,6 +5920,13 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.browser_stats_lbl = tk.Label(header_frame, text="", font=FONT_SMALL, bg=BG_MAIN, fg=FG_DIM)
         self.browser_stats_lbl.pack(side="left", padx=15, pady=(5, 0))
 
+        # "Install missing subscriptions (N)" - filled in once the subscription list is known
+        self.browser_bulk_area = tk.Frame(header_frame, bg=BG_MAIN)
+        self.browser_bulk_area.pack(side="left", pady=(5, 0))
+
+        # Filters survive leaving the tab (e.g. after an install jumped to Mod Activation)
+        saved = getattr(self, '_browser_filters', None) or {}
+
         # Search & Sort Container (Right Aligned)
         controls_frame = tk.Frame(header_frame, bg=BG_MAIN)
         controls_frame.pack(side="right")
@@ -5835,7 +5935,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_bg = tk.Frame(controls_frame, bg=BG_SECTION, padx=5, pady=2)
         search_bg.pack(side="left", padx=10)
 
-        self.browser_search_var = tk.StringVar()
+        self.browser_search_var = tk.StringVar(value=saved.get('q', ''))
         search_entry = tk.Entry(search_bg, textvariable=self.browser_search_var, font=FONT_SMALL, bg=BG_SECTION, fg=FG_MAIN, insertbackground=FG_MAIN, width=20, relief="flat")
         search_entry.pack(side="left")
         search_entry.bind("<Return>", lambda e: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
@@ -5852,12 +5952,6 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         search_btn.pack(side="left")
         self._bind_hover(search_btn, BG_SECTION, BG_HOVER)
 
-        # Tag filter state (persists across refreshes within the session)
-        if not hasattr(self, 'browser_tag_var'):
-            self.browser_tag_var = tk.StringVar(value="All Tags")
-        if not hasattr(self, 'browser_tag_filter'):
-            self.browser_tag_filter = ""
-
         # 2. Sort Dropdown
         self.browser_sort_options = {
             T(1999101432): "-downloads_total",
@@ -5869,15 +5963,16 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             T(1999101433): "name",
             T(1999101436): "submitted_by",
         }
-        self.browser_sort_var = tk.StringVar(value=T(1999101432))
+        _saved_sort = saved.get('sort')
+        self.browser_sort_var = tk.StringVar(value=_saved_sort if _saved_sort in self.browser_sort_options else T(1999101432))
         sort_menu = tk.OptionMenu(controls_frame, self.browser_sort_var, *self.browser_sort_options.keys(), command=lambda _: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
         sort_menu.config(font=FONT_XSMALL, bg=BG_SECTION, fg=FG_MAIN, highlightthickness=0, width=15)
         sort_menu["menu"].config(bg=BG_SECTION, fg=FG_MAIN)
         sort_menu.pack(side="left")
 
         # 2b. Tag filter dropdown (populated async from mod.io)
-        self.browser_tag_var = tk.StringVar(value="All Tags")
-        self.browser_tag_filter = ""
+        self.browser_tag_filter = saved.get('tag', '')
+        self.browser_tag_var = tk.StringVar(value=self.browser_tag_filter or "All Tags")
         self.browser_tag_menu = tk.OptionMenu(controls_frame, self.browser_tag_var, "All Tags")
         self.browser_tag_menu.config(font=FONT_XSMALL, bg=BG_SECTION, fg=FG_MAIN, highlightthickness=0, width=14)
         self.browser_tag_menu["menu"].config(bg=BG_SECTION, fg=FG_MAIN)
@@ -5902,7 +5997,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             self._fetch_game_tags(_populate_browser_tags)
 
         # 3. Subscribed-only filter toggle
-        self.browser_subscribed_only = tk.BooleanVar(value=False)
+        self.browser_subscribed_only = tk.BooleanVar(value=bool(saved.get('subs', False)))
 
         def _toggle_subscribed_filter():
             self._browser_exact_id = None
@@ -5926,6 +6021,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self.btn_subscribed_filter.pack(side="left", padx=(8, 0))
         self._bind_hover(self.btn_subscribed_filter, BG_SECTION, BG_HOVER)
         self._attach_tooltip(self.btn_subscribed_filter, T(1999101267))
+        if self.browser_subscribed_only.get():
+            self.btn_subscribed_filter.config(bg=FG_GOLD, fg="#000000", image=_ico_subf_black)
+            self._bind_hover(self.btn_subscribed_filter, FG_GOLD, "#ffd013")
 
         if not self.modio_token:
             tk.Label(self.main_content, text=T(1999101085), font=FONT_BODY, bg=BG_MAIN, fg=FG_DIM).pack(pady=50)
@@ -6000,13 +6098,23 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         if hasattr(self, 'browser_subscribed_only'):
             self.browser_subscribed_only.set(False)
         if hasattr(self, 'btn_subscribed_filter'):
-            self.btn_subscribed_filter.config(bg=BG_SECTION, fg=FG_MAIN)
+            self.btn_subscribed_filter.config(bg=BG_SECTION, fg=FG_MAIN, image=load_icon("subscribed_filter", (14, 14)) or "")
+            self._bind_hover(self.btn_subscribed_filter, BG_SECTION, BG_HOVER)
 
         self._browser_exact_id = None
         self.refresh_browser()
 
     def refresh_browser(self):
         """Resets offset and clears view for a fresh search."""
+        try:
+            self._browser_filters = {
+                'q': self.browser_search_var.get(),
+                'sort': self.browser_sort_var.get(),
+                'tag': getattr(self, 'browser_tag_filter', ''),
+                'subs': self.browser_subscribed_only.get(),
+            }
+        except (AttributeError, tk.TclError):
+            pass
         self.browser_offset = 0
         self._all_browser_mods = []
         self._browser_total_count = 0
@@ -6095,26 +6203,245 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             return
         try:
             headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
-            url = f"{MODIO_BASE_URL}/me/subscribed?game_id=11358&_limit=100"
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code == 401:
-                self.after(0, lambda r=res: self._handle_modio_401(r))
-                return
-            if res.status_code != 200:
-                return
-            api_ids = {str(m.get("id", "")) for m in res.json().get("data", [])}
+            subscribed = self._fetch_all_subscribed(headers)
+            if subscribed is None:
+                return  # never drop known subscriptions on a failed or partial fetch
+            self._subscribed_modio_mods = subscribed
+            api_ids = {str(m.get("id", "")) for m in subscribed}
             added   = [mid for mid in api_ids if mid and not self._subscription_states.get(mid)]
             removed = [mid for mid, v in list(self._subscription_states.items()) if v and mid not in api_ids]
             for mid in added:
                 self._subscription_states[mid] = True
             for mid in removed:
                 del self._subscription_states[mid]
+            mapped = self._reconcile_modio_map(subscribed)
             if added or removed:
                 self._save_subscriptions()
-                # Re-render tiles if the browser is still open
-                self.after(0, lambda: self.refresh_browser() if self.current_tab == "Mod Browser" else None)
+            def _apply(changed=bool(added or removed or mapped)):
+                if self.current_tab != "Mod Browser":
+                    return
+                self._update_install_missing_btn()
+                if (added or removed) and self.browser_subscribed_only.get():
+                    self.refresh_browser()
+                elif changed:
+                    self._rerender_browser_tiles()
+            self.after(0, _apply)
         except Exception as e:
             print(f"[sub sync] {e}")
+
+    def _rerender_browser_tiles(self):
+        """Rebuilds the visible Mod Browser tiles in place - same results, same scroll position - so
+        installed/subscribed markers reflect what is on disk now."""
+        if self.current_tab != "Mod Browser" or not getattr(self, '_virt_rows', None):
+            return
+        self.get_all_mod_metadata()
+        try:
+            for frame, cw_id in self._virt_rows.values():
+                self.browser_canvas.delete(cw_id)
+                frame.destroy()
+        except tk.TclError:
+            return
+        self._virt_rows = {}
+        self._render_visible_browser_rows()
+
+    def _missing_subscribed_targets(self):
+        """mod.io subscriptions (from the last full sync) that have a download but are not installed, sorted by name."""
+        local = [m for m in self.mods if not m.get('parent_path')]
+        targets = [m for m in getattr(self, '_subscribed_modio_mods', None) or []
+                   if ((m.get('modfile') or {}).get('download') or {}).get('binary_url')
+                   and self._local_mod_for_modio(m, local) is None]
+        return sorted(targets, key=lambda m: html.unescape(m.get('name', '')).lower())
+
+    def _update_install_missing_btn(self):
+        """Shows "Install missing (N)" in the Mod Browser header while subscribed mods are not installed."""
+        area = getattr(self, 'browser_bulk_area', None)
+        try:
+            if area is None or not area.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        for w in area.winfo_children():
+            w.destroy()
+        if getattr(self, '_bulk_install_running', False):
+            return
+        n = len(self._missing_subscribed_targets())
+        if not n:
+            return
+        _ico = load_icon("install_mod", (16, 16))
+        btn = tk.Button(area, text=T(1999101509, n), font=FONT_XSMALL, bg="#2ecc71", fg="#000000", activebackground="#39f085", cursor="hand2", relief="raised", padx=8, image=_ico, compound="left" if _ico else "none", command=self._install_missing_subscribed)
+        if _ico: btn.image = _ico
+        btn.pack(side="left")
+        self._bind_hover(btn, "#2ecc71", "#39f085")
+        self._attach_tooltip(btn, T(1999101510))
+
+    def _install_missing_subscribed(self):
+        """Downloads and installs every subscribed mod that is not installed yet, one after another in a single
+        progress window, with one summary at the end. Missing mod.io dependencies are installed too. A mod whose
+        folder already exists is left untouched and only linked to its mod.io entry. Can be stopped after the
+        current mod; clicking the button again continues with whatever is still missing."""
+        if getattr(self, '_bulk_install_running', False) or getattr(self, '_bulk_update_running', False):
+            return
+        self.get_all_mod_metadata()
+        targets = self._missing_subscribed_targets()
+        if not targets:
+            self._update_install_missing_btn()
+            return
+        names = "\n".join(f"  •  {html.unescape(m.get('name', ''))}" for m in targets)
+        if not self._imperial_question(T(1999101511), T(1999101512, len(targets), names), scrollable=True):
+            return
+        self._bulk_install_running = True
+        self._update_install_missing_btn()
+        stop = threading.Event()
+
+        win_w, win_h = 440, 300
+        win = tk.Toplevel(self)
+        win.title(T(1999101514))
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (win_w // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (win_h // 2)
+        win.geometry(f"{win_w}x{win_h}+{x}+{y}")
+        win.configure(bg=BG_SECTION)
+        win.transient(self)
+        win.grab_set()
+        win.protocol("WM_DELETE_WINDOW", lambda: _request_stop())
+
+        count_lbl = tk.Label(win, text="", font=FONT_SMALL, bg=BG_SECTION, fg=FG_DIM)
+        count_lbl.pack(pady=(20, 5))
+        name_lbl = tk.Label(win, text="", font=FONT_UI_BOLD, bg=BG_SECTION, fg=FG_MAIN, wraplength=390)
+        name_lbl.pack(pady=5)
+        progress = ttk.Progressbar(win, orient="horizontal", length=320, mode="determinate")
+        progress.pack(pady=15)
+        status_lbl = tk.Label(win, text="", font=FONT_XSMALL, bg=BG_SECTION, fg="#2ecc71")
+        status_lbl.pack()
+        stop_btn = tk.Button(win, text=T(1999101513), font=FONT_XSMALL, bg=BG_MAIN, fg=FG_MAIN, activebackground=BG_HOVER, relief="raised", cursor="hand2", padx=10)
+        stop_btn.pack(pady=(15, 0))
+        self._bind_hover(stop_btn, BG_MAIN, BG_HOVER)
+
+        def _request_stop():
+            stop.set()
+            try:
+                stop_btn.config(state="disabled", cursor="arrow")
+            except tk.TclError:
+                pass
+        stop_btn.config(command=_request_stop)
+
+        def _download(url, zip_path):
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()
+            total = int(response.headers.get('content-length', 0))
+            done, last_pct = 0, -1
+            with open(zip_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=65536):
+                    f.write(chunk)
+                    done += len(chunk)
+                    pct = int(done * 100 / total) if total else 0
+                    if pct != last_pct:
+                        last_pct = pct
+                        self.after(0, lambda p=pct: progress.config(value=p))
+
+        def _install(zip_path, mid, name, errors, existing):
+            self._pending_modio_mapping = (str(mid), name)
+            ok = self.run_install_logic(zip_path, silent=True, errors=errors, kept_existing=existing)
+            self._pending_modio_mapping = None
+            if ok:
+                self._subscription_states[str(mid)] = True
+            return ok
+
+        def worker():
+            headers = {'Authorization': f'Bearer {self.modio_token}', 'Accept': 'application/json'}
+            target_ids = {str(m.get('id')) for m in targets}
+            installed, present, failed, new_deps = [], [], [], []
+            handled = 0
+            for i, mod in enumerate(targets, 1):
+                if stop.is_set():
+                    break
+                mid = str(mod.get('id'))
+                name = html.unescape(mod.get('name', ''))
+                self.after(0, lambda i=i, n=name: [count_lbl.config(text=T(1999101503, i, len(targets))),
+                                                   name_lbl.config(text=n.upper()),
+                                                   progress.config(value=0),
+                                                   status_lbl.config(text=T(1999101106))])
+                tmp_dir, error = None, ""
+                try:
+                    # Required mods that are neither installed nor part of this run come first
+                    if mod.get('dependencies'):
+                        for dep_id, dep_name, dep_url in self._missing_modio_dependencies(mid, headers):
+                            if str(dep_id) in target_ids:
+                                continue
+                            dep_dir = tempfile.mkdtemp(prefix="anno117_mod_")
+                            try:
+                                dep_zip = os.path.join(dep_dir, "dependency.zip")
+                                _download(dep_url, dep_zip)
+                                self._run_on_main_thread(lambda z=dep_zip, d=dep_id, n=dep_name: self._silent_finalize(z, d, n))
+                                new_deps.append(dep_name)
+                                target_ids.add(str(dep_id))
+                            except Exception as e:
+                                print(f"[install subscribed] Dependency '{dep_name}' failed: {e}")
+                            finally:
+                                shutil.rmtree(dep_dir, ignore_errors=True)
+
+                    tmp_dir = tempfile.mkdtemp(prefix="anno117_mod_")
+                    zip_path = os.path.join(tmp_dir, "mod.zip")
+                    try:
+                        _download(mod['modfile']['download']['binary_url'], zip_path)
+                    except Exception:
+                        # Download links can expire - fetch a fresh one once
+                        res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{mid}", headers=headers, timeout=10)
+                        res.raise_for_status()
+                        fresh = ((res.json().get('modfile') or {}).get('download') or {}).get('binary_url')
+                        if not fresh:
+                            raise RuntimeError(T(1999101472))
+                        _download(fresh, zip_path)
+                    self.after(0, lambda: status_lbl.config(text=T(1999101107)))
+                    errors, existing = [], []
+                    ok = bool(self._run_on_main_thread(lambda z=zip_path, m=mid, n=name, er=errors, ex=existing: _install(z, m, n, er, ex)))
+                    if not ok:
+                        error = "; ".join(errors)
+                    elif existing:
+                        present.append(name)
+                    else:
+                        installed.append(name)
+                except Exception as e:
+                    ok, error = False, str(e)
+                    print(f"[install subscribed] '{name}' failed: {e}")
+                finally:
+                    if tmp_dir:
+                        shutil.rmtree(tmp_dir, ignore_errors=True)
+                if not ok:
+                    failed.append((name, error))
+                handled = i
+            self.after(0, lambda: _finish(installed, present, failed, new_deps, len(targets) - handled))
+
+        def _finish(installed, present, failed, new_deps, remaining):
+            self._bulk_install_running = False
+            try:
+                win.grab_release()
+                win.destroy()
+            except tk.TclError:
+                pass
+            self._save_subscriptions()
+            self.mods = self.get_all_mod_metadata()
+            self.parse_active_profile()
+            if self.current_tab == "Mod Activation":
+                self.render_activation_tab()
+
+            parts = []
+            if installed:
+                parts.append(T(1999101516) + "\n" + "\n".join(f"  •  {n}" for n in installed))
+            if present:
+                parts.append(T(1999101517) + "\n" + "\n".join(f"  •  {n}" for n in present))
+            if failed:
+                parts.append(T(1999101518) + "\n" + "\n".join(f"  •  {n}" + (f" - {e}" if e else "") for n, e in failed))
+            if new_deps:
+                parts.append(T(1999101507) + "\n" + "\n".join(f"  •  {n}" for n in new_deps))
+            if remaining:
+                parts.append(T(1999101519, remaining))
+            self._imperial_alert(T(1999101515), "\n\n".join(parts), is_error=bool(failed) and not installed and not present, scrollable=True)
+            self._update_install_missing_btn()
+            self._rerender_browser_tiles()
+            self.after(2000, lambda: threading.Thread(target=self._check_modio_version_updates, daemon=True).start())
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _fetch_subscribed_mods(self, parent_frame, loading_lbl, q="", s="-id", offset=0, tag=""):
         """Fetches mods the authenticated user is subscribed to with sorting and filtering."""
@@ -6355,22 +6682,13 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         tile_mod_id = str(mod.get('id'))
         is_subscribed = self._subscription_states.get(tile_mod_id, False)
 
-        # Robust check against ACTUAL files on disk (self.mods)
-        # 1. Does any physically present mod map to this mod.io ID?
-        is_installed_locally = any(
-            self._subscription_modio_map.get(m['id']) == tile_mod_id
-            for m in self.mods if not m.get('parent_path')
-        )
-
-        # 2. Fallback: Does any physically present mod have the exact same normalized name? (Catches manually installed mods that aren't in the subscription map yet)
-        if not is_installed_locally:
-            import re as _re
-            norm_target = _re.sub(r'[^a-z0-9]', '', mod.get('name', '').lower())
-            for m in self.mods:
-                if m.get('parent_path'): continue
-                if _re.sub(r'[^a-z0-9]', '', m.get('name', '').lower()) == norm_target:
-                    is_installed_locally = True
-                    break
+        # Checked against the mods actually on disk: the ModID -> mod.io map, else a unique name/ID match
+        is_installed_locally = self._local_mod_for_modio(mod) is not None
+        if is_installed_locally:
+            tile.config(highlightbackground="#2ecc71")
+            inst_badge = tk.Label(img_container, text=f"✔ {T(1999101508)}", font=FONT_XSMALL, bg="#2ecc71", fg="#000000", padx=6, pady=2)
+            inst_badge.place(relx=1.0, x=-4, y=4, anchor="ne")
+            inst_badge.bind("<Button-1>", lambda e, m=mod: self._show_mod_details(m))
 
         install_area = tk.Frame(btn_frame, bg=BG_SECTION)
         install_area.pack(side="right")
@@ -6441,7 +6759,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 else:
                     self.after(0, lambda: self._endorse_failed(btn, f"Server returned {res.status_code}."))
             except Exception as e:
-                self.after(0, lambda: self._endorse_failed(btn, str(e)))
+                self.after(0, lambda e=e: self._endorse_failed(btn, str(e)))
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -6849,6 +7167,103 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             return bool(self.mod_statuses.get(mod_id, {}).get("active", False)), False
         return mode == "on", False
 
+    @staticmethod
+    def _match_key(text):
+        """Comparison key for mod names: lowercase letters/digits only, without [Category] or (Author) tags."""
+        text = html.unescape(str(text or "")).lower()
+        text = re.sub(r'\[[^\]]*\]|\([^)]*\)', ' ', text)
+        return re.sub(r'[^a-z0-9]', '', text)
+
+    def _local_mod_for_modio(self, modio_mod, local_mods=None, claimed=(), strict=False):
+        """Finds the installed top-level mod for a mod.io mod object (or a dict with id/name/name_id).
+        The ModID -> mod.io map wins; otherwise the mod.io name or URL slug must match a local mod's
+        English or translated name, its ModID or its folder name. ModIDs often add the author
+        ("gz2k2-custom-research-options" for "custom-research-options"), which counts as a weaker match
+        that strict=True leaves out. Only a single best hit is returned - when two local mods fit
+        equally well (and the version doesn't decide it), the result is None rather than a guess."""
+        mid = str(modio_mod.get('id', ''))
+        mods = [m for m in (self.mods if local_mods is None else local_mods) if not m.get('parent_path')]
+        if mid:
+            lid = next((k for k, v in self._subscription_modio_map.items() if str(v) == mid), None)
+            if lid:
+                hit = next((m for m in mods if m['id'] == lid), None)
+                if hit:
+                    return hit
+
+        name_key = self._match_key(modio_mod.get('name', ''))
+        slug = _norm_mod_id(modio_mod.get('name_id') or "") or ""
+        name_slug = _norm_mod_id(html.unescape(modio_mod.get('name', '')))
+        slug_key = slug.replace('-', '')
+        if not name_key and not slug_key:
+            return None
+
+        def _score(m):
+            keys = {self._match_key(m.get('name_en', '')), self._match_key(m.get('name', '')),
+                    self._match_key(os.path.basename(m.get('path', ''))), m['id'].replace('-', '')}
+            keys.discard('')
+            if name_key in keys or slug_key in keys:
+                return 2
+            if not strict:
+                for s in (slug, name_slug):
+                    if len(s) >= 5 and (m['id'].endswith('-' + s) or m['id'].startswith(s + '-')):
+                        return 1
+            return 0
+
+        # Mods already mapped to another mod.io entry are not candidates
+        mapped_elsewhere = {k for k, v in self._subscription_modio_map.items() if str(v) != mid}
+        scored = [(_score(m), m) for m in mods if m['id'] not in mapped_elsewhere and m['id'] not in claimed]
+        best = max((s for s, _ in scored), default=0)
+        if not best:
+            return None
+        hits = [m for s, m in scored if s == best]
+        if len(hits) > 1:
+            remote_ver = str((modio_mod.get('modfile') or {}).get('version') or '').strip().lstrip('vV')
+            hits = [m for m in hits if remote_ver and str(m.get('version', '')).strip().lstrip('vV') == remote_ver]
+        return hits[0] if len(hits) == 1 else None
+
+    def _reconcile_modio_map(self, modio_mods):
+        """Adds ModID -> mod.io ID map entries for subscribed mods that are installed but were never mapped
+        (installed by hand, by the game or by an older app version). Only exact name/ID matches are stored,
+        because updates and unsubscribing act on the mapped folder. Returns the number of new entries."""
+        local = [m for m in self.get_all_mod_metadata() if not m.get('parent_path')]
+        mapped_ids = {str(v) for v in self._subscription_modio_map.values()}
+        claimed, added = set(self._subscription_modio_map), 0
+        for mod in modio_mods:
+            mid = str(mod.get('id', ''))
+            if not mid or mid in mapped_ids:
+                continue
+            hit = self._local_mod_for_modio(mod, local, claimed=claimed, strict=True)
+            if hit:
+                self._subscription_modio_map[hit['id']] = mid
+                claimed.add(hit['id'])
+                mapped_ids.add(mid)
+                added += 1
+        if added:
+            self._save_subscription_map()
+        return added
+
+    def _fetch_all_subscribed(self, headers):
+        """Background: every mod.io subscription for this game, following the pages (mod.io returns at most
+        100 per request). Returns the list of mod objects, or None on a 401 / failed request, so callers never
+        mistake a partial list for the full one."""
+        mods, offset = [], 0
+        for _ in range(100):
+            res = requests.get(f"{MODIO_BASE_URL}/me/subscribed",
+                               params={'game_id': 11358, '_limit': 100, '_offset': offset},
+                               headers=headers, timeout=15)
+            if res.status_code == 401:
+                self.after(0, lambda r=res: self._handle_modio_401(r))
+                return None
+            if res.status_code != 200:
+                return None
+            data = res.json()
+            page = data.get('data', [])
+            mods.extend(page)
+            offset += len(page)
+            if not page or offset >= int(data.get('result_total', 0) or 0):
+                break
+        return mods
+
     def _find_local_mod_entry(self, modio_id=None, mod_name=""):
         """Resolves the locally installed top-level mod entry for a mod.io ID (via the
         subscription map) or, failing that, via its display name. Returns the metadata
@@ -6945,15 +7360,12 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         deps = res.json().get('data', []) if res.status_code == 200 else []
         if not deps:
             return []
-        installed_names = {
-            m.get('name', '').lower().replace(' ', '')
-            for m in self.get_all_mod_metadata()
-        }
+        local = self.get_all_mod_metadata()
         missing = []
         for dep in deps:
             dep_mod_id = dep.get('mod_id')
             dep_mod_name = html.unescape(dep.get('name', ''))
-            if dep_mod_name.lower().replace(' ', '') in installed_names:
+            if self._local_mod_for_modio({'id': dep_mod_id, 'name': dep_mod_name, 'name_id': dep.get('name_id')}, local):
                 self._subscription_states[str(dep_mod_id)] = True
                 continue
             mod_res = requests.get(f"{MODIO_BASE_URL}/games/11358/mods/{dep_mod_id}", headers=headers, timeout=10)
@@ -7006,7 +7418,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             old_v, new_v = self._modio_update_versions.get(lid, ("", ""))
             return f"  •  {name}" + (f"  ({old_v} → {new_v})" if old_v and new_v else "")
         names = "\n".join(_line(lid, name) for lid, _, name in targets)
-        if not self._imperial_question(T(1999101213), T(1999101501, len(targets), names)):
+        if not self._imperial_question(T(1999101213), T(1999101501, len(targets), names), scrollable=len(targets) > 6):
             return
         self._bulk_update_running = True
 
@@ -7223,7 +7635,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 # Download failed - put the removed mod data back where it was
                 self._restore_stashed_mod_folder(_old_path, _backup_path)
                 self.after(0, lambda: self.__dict__.get('_keep_activation', {}).pop(keep_id, None))
-                self.after(0, lambda: self._install_failed(dl_win, str(e)))
+                self.after(0, lambda e=e: self._install_failed(dl_win, str(e)))
 
         threading.Thread(target=run_task, daemon=True).start()
 
@@ -7286,6 +7698,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                         self._store_modio_mapping(mod_id, mod_name)
                     if install_area is not None:
                         self.after(0, lambda: self._apply_subscribed_state(install_area, dl_url, mod_name, mod_id))
+                    # Installed badge on the tile and the "Install missing" count
+                    self.after(0, lambda: [self._rerender_browser_tiles(), self._update_install_missing_btn()])
                     # Map is now populated - refresh the right panel if the activation tab is still showing this mod so the button switches from Uninstall to Unsubscribe immediately.
                     def _refresh_right_panel():
                         if self.current_tab != "Mod Activation":
@@ -7684,7 +8098,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         except Exception as e:
             print(f"[Unsubscribe] Critical Exception: {e}")
-            self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101400, e), is_error=True))
+            self.after(0, lambda e=e: self._imperial_alert(T(1999101189), T(1999101400, e), is_error=True))
             self.after(0, lambda: self._apply_subscribed_state(install_area, dl_url, mod_name, mod_id))
 
     def _delete_unsubscribed_mod(self, mod_id, mod_name):
@@ -8552,13 +8966,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
                     def _update_color_preview(raw_value, preview=color_preview):
                         try:
-                            val = int(raw_value) & 0xFFFFFFFF
-                            r = (val >> 16) & 255
-                            g = (val >> 8) & 255
-                            b = val & 255
-                            preview.config(bg=f"#{r:02x}{g:02x}{b:02x}")
+                            val = int(str(raw_value).strip()) & 0xFFFFFFFF
+                            color = f"#{(val >> 16) & 255:02x}{(val >> 8) & 255:02x}{val & 255:02x}"
                         except (TypeError, ValueError):
-                            preview.config(bg=BG_MAIN)
+                            color = BG_MAIN
+                        try:
+                            preview.config(bg=color)
+                        except tk.TclError:
+                            pass  # the panel was rebuilt (another mod selected) before a queued refresh ran
 
                     _update_color_preview(entry_var.get())
 
@@ -8566,10 +8981,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     # independent from StringVar traces so manual typing, paste and deletion
                     # repaint the preview reliably on every edit.
                     def _refresh_preview_from_entry(event=None, v=entry_var, preview=color_preview):
-                        def _apply():
-                            _update_color_preview(v.get(), preview)
-                            preview.update_idletasks()
-                        preview.after_idle(_apply)
+                        preview.after_idle(lambda: _update_color_preview(v.get(), preview))
 
                     entry.bind("<KeyRelease>", _refresh_preview_from_entry, add="+")
                     entry.bind("<<Paste>>", _refresh_preview_from_entry, add="+")
@@ -8583,17 +8995,22 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     def _refresh_preview_on_enter(event=None, v=entry_var, preview=color_preview, ui=update_insight):
                         value_text = v.get().strip()
                         _update_color_preview(value_text, preview)
-                        preview.update_idletasks()
                         ui(value_text)
 
                     entry.bind("<Return>", _refresh_preview_on_enter, add="+")
-                    entry.bind("<KP_Enter>", _refresh_preview_on_enter, add="+")
+                    # Keypad Enter commits (saves) like Return
+                    entry.bind("<KP_Enter>", lambda e, cb=make_entry_callback(): [cb(e), _refresh_preview_on_enter(e)])
 
                     def _sync_color_preview(*_, v=entry_var, preview=color_preview):
                         _update_color_preview(v.get(), preview)
-                        preview.update_idletasks()
-                    # Keep the Tcl trace registered for programmatic changes as well.
-                    color_preview._trace_id = entry_var.trace_add("write", _sync_color_preview)
+                    # Programmatic changes (the picker) repaint through the trace; it is removed with the swatch
+                    _trace_id = entry_var.trace_add("write", _sync_color_preview)
+                    def _drop_trace(e, v=entry_var, t=_trace_id):
+                        try:
+                            v.trace_remove("write", t)
+                        except (tk.TclError, ValueError):
+                            pass
+                    color_preview.bind("<Destroy>", _drop_trace)
 
                     def _open_color_picker(v=entry_var, k=opt_key, preview=color_preview, ui=update_insight):
                         try:
@@ -9327,7 +9744,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 mods = res.json().get('data', []) if res.status_code == 200 else []
                 self.after(0, lambda: render_mods(mods))
             except Exception as e:
-                self.after(0, lambda: loading_mods.config(text=T(1999101403, e)))
+                self.after(0, lambda e=e: loading_mods.config(text=T(1999101403, e)))
 
         def render_mods(mods):
             try:
@@ -9444,7 +9861,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.after(0, lambda: follow_area.winfo_children()[0].config(
                         state="normal", text=T(1999101140)))
             except Exception as e:
-                self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101422, e), is_error=True))
+                self.after(0, lambda e=e: self._imperial_alert(T(1999101189), T(1999101422, e), is_error=True))
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -9510,10 +9927,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     self.after(0, _close_progress)
                     return
 
-                installed_names = {
-                    m.get('name', '').lower().replace(' ', '')
-                    for m in self.get_all_mod_metadata()
-                }
+                local_mods = self.get_all_mod_metadata()
 
                 total_mods = len(mods)
                 to_install  = []
@@ -9542,13 +9956,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     except Exception as e:
                         print(f"[Collection] Subscribe failed for '{mname}': {e}")
 
-                    if mname.lower().replace(' ', '') not in installed_names:
+                    local_hit = self._local_mod_for_modio(mod, local_mods)
+                    if local_hit is None:
                         dl_url = (mod.get('modfile') or {}).get('download', {}).get('binary_url')
                         if dl_url:
                             to_install.append((mid, mname, dl_url))
-                    else:
-                        # Only attempt fuzzy-mapping if the mod is ALREADY installed locally. (If it's in to_install, run_install_logic will map it perfectly during extraction).
-                        self._store_modio_mapping(mid, mname)
+                    elif mid not in {str(v) for v in self._subscription_modio_map.values()}:
+                        # Already installed: link it (new installs are linked precisely by run_install_logic)
+                        self._subscription_modio_map[local_hit['id']] = mid
+                        self._save_subscription_map()
 
                 self._save_subscriptions()
                 _set_progress(50)
@@ -9619,18 +10035,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     if local_id:
                         local_mod_ids.append(local_id)
                     else:
-                        # Fallback: name match for mods whose mapping wasn't stored yet
-                        import re as _re
-                        def _tok(s): return set(_re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
-                        mname = html.unescape(mod.get('name', ''))
-                        mtok  = _tok(mname)
-                        local = next(
-                            (m for m in self.mods
-                             if not m.get('parent_path')
-                             and (m.get('name', '').lower().replace(' ', '') == mname.lower().replace(' ', '')
-                                  or _tok(m.get('name', '')).issubset(mtok)
-                                  or mtok.issubset(_tok(m.get('name', ''))))),
-                            None)
+                        # Fallback for mods whose mapping wasn't stored yet
+                        local = self._local_mod_for_modio(mod)
                         if local:
                             local_mod_ids.append(local['id'])
 
@@ -9748,7 +10154,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 self.after(0, lambda: self._apply_follow_btn_after_unfollow(follow_area, cid_str, collection_name))
                 self.after(0, lambda: self._imperial_alert(T(1999101307), T(1999101366, collection_name)))
             except Exception as e:
-                self.after(0, lambda: self._imperial_alert(T(1999101189), T(1999101406, e), is_error=True))
+                self.after(0, lambda e=e: self._imperial_alert(T(1999101189), T(1999101406, e), is_error=True))
 
         threading.Thread(target=task, daemon=True).start()
 
