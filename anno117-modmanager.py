@@ -3200,7 +3200,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         all_top_mods = [m for m in self.mods if m['parent_path'] is None and not m.get('manually_disabled')]
         filtered_mods = []
         for m in all_top_mods:
-            if not query or (query in str(m.get('name','')).lower() or query in str(m.get('category','')).lower()):
+            if self._mod_matches_search(m, query):
                 filtered_mods.append(m)
 
         filtered_mods.sort(key=get_sorting_key)
@@ -3283,9 +3283,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             rows = []
             for m in flat_order:
                 parent = _parent_of(m)
-                if query and not (query in m.get('name', '').lower()
-                                  or query in m.get('category', '').lower()
-                                  or (parent and query in parent.get('name', '').lower())):
+                if not (self._mod_matches_search(m, query) or (parent and self._mod_matches_search(parent, query))):
                     continue
                 rows.append((m, parent))
 
@@ -3306,9 +3304,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                 key=lambda m: m['name'].lower()
             )
             if query:
-                inactive = [m for m in inactive
-                            if query in m.get('name', '').lower()
-                            or query in m.get('category', '').lower()]
+                inactive = [m for m in inactive if self._mod_matches_search(m, query)]
             if inactive:
                 self._draw_separator(T(1999101438))
             for mod in inactive:
@@ -3370,6 +3366,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             tk.Frame(sep_container, bg=line_color, height=2).pack(fill="x", padx=10, side="left", expand=True)
             return sep_container
 
+    def _mod_matches_search(self, m, query):
+        """Activation-tab search: the query matches the shown (translated) name, the English name, the ModID,
+        category, author or folder name - so "commuter pier" also finds a mod shown under its German name."""
+        if not query:
+            return True
+        fields = (m.get('name'), m.get('name_en'), m.get('id'), str(m.get('id', '')).replace('-', ' '),
+                  m.get('category'), m.get('creator'), os.path.basename(str(m.get('path', ''))))
+        return any(query in str(f).lower() for f in fields if f)
+
     def _apply_activation_search(self):
         """Applies the search box to the activation list: re-packs drawn rows, or rebuilds in Load Order view."""
         self._search_job = None
@@ -3411,7 +3416,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         order = []
         section = None
         for m in sorted(data['mods'], key=data['key']):
-            if query and not (query in str(m.get('name', '')).lower() or query in str(m.get('category', '')).lower()):
+            if not self._mod_matches_search(m, query):
                 continue
             active = _is_active(m['id'])
             if active != section:
@@ -5913,7 +5918,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         # --- HEADER ---
         header_frame = tk.Frame(self.main_content, bg=BG_MAIN)
-        header_frame.pack(fill="x", padx=20, pady=20)
+        header_frame.pack(fill="x", padx=20, pady=(20, 6))
         tk.Label(header_frame, text=T(1999101083), font=FONT_TITLE, bg=BG_MAIN, fg=FG_MAIN).pack(side="left")
 
         # New Stats Label (e.g., "Showing 50 of 412")
@@ -5928,8 +5933,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         saved = getattr(self, '_browser_filters', None) or {}
 
         # Search & Sort Container (Right Aligned)
-        controls_frame = tk.Frame(header_frame, bg=BG_MAIN)
-        controls_frame.pack(side="right")
+        controls_frame = tk.Frame(self.main_content, bg=BG_MAIN)  # own row, so nothing is cut off in narrower windows
+        controls_frame.pack(fill="x", padx=10, pady=(0, 12))
 
         # 1. Search Entry with Clear Button
         search_bg = tk.Frame(controls_frame, bg=BG_SECTION, padx=5, pady=2)
@@ -5963,9 +5968,18 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             T(1999101433): "name",
             T(1999101436): "submitted_by",
         }
-        _saved_sort = saved.get('sort')
-        self.browser_sort_var = tk.StringVar(value=_saved_sort if _saved_sort in self.browser_sort_options else T(1999101432))
-        sort_menu = tk.OptionMenu(controls_frame, self.browser_sort_var, *self.browser_sort_options.keys(), command=lambda _: [setattr(self, '_browser_exact_id', None), self.refresh_browser()])
+        # The last sort the user picked is remembered across restarts (stored as the mod.io key, so it
+        # survives a language change); first-time default: Last Updated
+        _saved_key = saved.get('sort') or self.settings.get("browser_sort", "-date_updated")
+        _saved_label = next((lbl for lbl, key in self.browser_sort_options.items() if key == _saved_key), T(1999101485))
+        self.browser_sort_var = tk.StringVar(value=_saved_label)
+
+        def _on_sort_selected(label):
+            self._browser_exact_id = None
+            self.settings["browser_sort"] = self.browser_sort_options.get(label, "-date_updated")
+            self.save_settings()
+            self.refresh_browser()
+        sort_menu = tk.OptionMenu(controls_frame, self.browser_sort_var, *self.browser_sort_options.keys(), command=_on_sort_selected)
         sort_menu.config(font=FONT_XSMALL, bg=BG_SECTION, fg=FG_MAIN, highlightthickness=0, width=15)
         sort_menu["menu"].config(bg=BG_SECTION, fg=FG_MAIN)
         sort_menu.pack(side="left")
@@ -6057,6 +6071,9 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         # Re-render visible rows whenever the user scrolls
         def _on_vscroll(*args):
             scrollbar.set(*args)
+            self._browser_scroll = float(args[0]) if args else 0.0
+            if getattr(self, '_browser_cache', None) and self._browser_cache['mods'] and not getattr(self, '_restoring_browser', False):
+                self._browser_cache['scroll'] = self._browser_scroll
             self.after_idle(self._render_visible_browser_rows)
         self.browser_canvas.configure(yscrollcommand=_on_vscroll)
 
@@ -6066,7 +6083,42 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         # Sync external subscriptions in background before rendering tiles
         threading.Thread(target=self._sync_subscriptions_from_modio, daemon=True).start()
-        self.refresh_browser()
+        if not self._restore_browser_results():
+            self.refresh_browser()
+
+    def _current_browser_filters(self):
+        """The Mod Browser's search inputs as a dict (what a cached result list belongs to)."""
+        return {
+            'q': self.browser_search_var.get(),
+            'sort': self.browser_sort_options.get(self.browser_sort_var.get(), ""),
+            'tag': getattr(self, 'browser_tag_filter', ''),
+            'subs': self.browser_subscribed_only.get(),
+        }
+
+    def _restore_browser_results(self):
+        """Coming back to the Mod Browser in the same session: shows the results already loaded for the same
+        filters (including pages added with "Load more") at the previous scroll position, instead of
+        starting again at the top. Returns False if there is nothing to restore."""
+        cache = getattr(self, '_browser_cache', None)
+        if (not cache or not cache['mods'] or getattr(self, '_browser_exact_id', None)
+                or cache['filters'] != self._current_browser_filters()):
+            return False
+        scroll = cache.get('scroll', 0.0)   # read first: rebuilding the tiles resets the view to the top
+        self._restoring_browser = True
+        self.browser_offset = 0
+        self._build_mod_tiles(self.browser_canvas, list(cache['mods']), cache['total'])
+        stats_id = 1999101450 if cache['filters']['subs'] else 1999101449
+        self.browser_stats_lbl.config(text=T(stats_id, len(cache['mods']), cache['total']))
+        def _scroll_back():
+            try:
+                self.browser_canvas.update_idletasks()
+                self._restoring_browser = False
+                self.browser_canvas.yview_moveto(scroll)
+                self._render_visible_browser_rows()
+            except tk.TclError:
+                self._restoring_browser = False
+        self.after(50, _scroll_back)
+        return True
 
     def _fetch_game_tags(self, callback):
         """Fetches the tag option groups for Anno 117 from mod.io and calls callback(tag_list) on the main thread. tag_list is a flat sorted list of tag name strings. Results are cached for the session."""
@@ -6092,9 +6144,8 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _clear_search(self):
-        """Resets search, sort and subscribed filter to default."""
+        """Resets search, tag and subscribed filter. The sort order stays - it is the user's remembered choice."""
         self.browser_search_var.set("")
-        self.browser_sort_var.set(T(1999101432))
         if hasattr(self, 'browser_subscribed_only'):
             self.browser_subscribed_only.set(False)
         if hasattr(self, 'btn_subscribed_filter'):
@@ -6107,14 +6158,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
     def refresh_browser(self):
         """Resets offset and clears view for a fresh search."""
         try:
-            self._browser_filters = {
-                'q': self.browser_search_var.get(),
-                'sort': self.browser_sort_var.get(),
-                'tag': getattr(self, 'browser_tag_filter', ''),
-                'subs': self.browser_subscribed_only.get(),
-            }
+            self._browser_filters = self._current_browser_filters()
         except (AttributeError, tk.TclError):
             pass
+        self._browser_cache = None
+        self._browser_scroll = 0.0
         self.browser_offset = 0
         self._all_browser_mods = []
         self._browser_total_count = 0
@@ -6511,6 +6559,11 @@ class AnnoModManagerApp(TkinterDnD.Tk):
         self._all_browser_mods.extend(mods)
         self.browser_offset = len(self._all_browser_mods)
         self._browser_total_count = total_count
+        if not getattr(self, '_browser_exact_id', None):
+            # Kept for coming back to the tab later in this session (see _restore_browser_results)
+            prev = getattr(self, '_browser_cache', None) or {}
+            self._browser_cache = {'filters': self._current_browser_filters(), 'mods': self._all_browser_mods,
+                                   'total': total_count, 'scroll': prev.get('scroll', 0.0)}
 
         n_rows = (len(self._all_browser_mods) + _VR_C - 1) // _VR_C
         frame_h = n_rows * _VR_H + (70 if self.browser_offset < total_count else 0)
@@ -9215,14 +9268,14 @@ class AnnoModManagerApp(TkinterDnD.Tk):
 
         # Header
         header_frame = tk.Frame(self.main_content, bg=BG_MAIN)
-        header_frame.pack(fill="x", padx=20, pady=20)
+        header_frame.pack(fill="x", padx=20, pady=(20, 6))
         tk.Label(header_frame, text=T(1999101122), font=FONT_TITLE, bg=BG_MAIN, fg=FG_MAIN).pack(side="left")
 
         self.col_stats_lbl = tk.Label(header_frame, text="", font=FONT_SMALL, bg=BG_MAIN, fg=FG_DIM)
         self.col_stats_lbl.pack(side="left", padx=15, pady=(5, 0))
 
-        controls_frame = tk.Frame(header_frame, bg=BG_MAIN)
-        controls_frame.pack(side="right")
+        controls_frame = tk.Frame(self.main_content, bg=BG_MAIN)  # own row, so nothing is cut off in narrower windows
+        controls_frame.pack(fill="x", padx=10, pady=(0, 12))
 
         # Search
         search_bg = tk.Frame(controls_frame, bg=BG_SECTION, padx=5, pady=2)

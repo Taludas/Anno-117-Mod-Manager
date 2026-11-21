@@ -187,7 +187,7 @@ Der primäre Tab zum Verwalten, welche Mods beim Spielstart aktiv sind.
 #### Sortieren & Filtern
 
 - Klicke auf die Spaltenköpfe ✔️ / **Kategorie** / **Mod-Name** zum Sortieren. Kategorie unterstützt A→Z, Z→A und aus.
-- Nutze die **Suchleiste**, um nach Name oder Kategorie zu filtern. Die Liste filtert beim Tippen, schon ab dem ersten Buchstaben.
+- Nutze die **Suchleiste**, um nach Name oder Kategorie zu filtern. Die Liste filtert beim Tippen, schon ab dem ersten Buchstaben. Gefunden werden Mods auch über ihren englischen Namen, ihre ModID, den Autor und den Ordnernamen – „commuter pier“ findet also auch eine Mod, die unter ihrem deutschen Namen angezeigt wird.
 - Wird ein Mod an- oder abgehakt, wandert er direkt in die Gruppe Aktiv bzw. Deaktiviert; der Rest der Liste bleibt, wo er ist.
 - **↻ Aktualisieren** liest alle Mods neu von der Festplatte, misst die Ordnergrößen neu und aktualisiert die Warnungen zu fehlenden Abhängigkeiten und Konflikten. Nutze es, nachdem du Mod-Dateien außerhalb der App geändert hast, oder um die Warnungen nach dem An- und Abhaken zu aktualisieren.
 - **Alle aktivieren** setzt das Profil zurück, sodass jeder installierte Mod aktiv ist.
@@ -232,11 +232,11 @@ Stöbere und installiere Mods direkt von mod.io, ohne die App zu verlassen. Erfo
 #### Suche & Filter
 
 - **Suchleiste** – Volltextsuche im mod.io-Katalog. Ergebnisse werden ab drei Zeichen automatisch aktualisiert.
-- **Sortierung** – Meiste Downloads, Alphabetisch, Neueste, Höchste Bewertung, Autor.
+- **Sortierung** – Meiste Downloads, Meiste Abonnenten, Höchste Bewertung, Im Trend, Neueste, Zuletzt aktualisiert, Alphabetisch, Autor. Voreingestellt ist **Zuletzt aktualisiert**; deine Auswahl wird gemerkt, auch über einen Neustart hinaus.
 - **Tag-Filter** – Dropdown mit der Tag-Liste des Spiels von mod.io; nach einem einzelnen Tag filtern.
 - **Abonniert**-Schalter – zeigt nur Mods an, die du aktuell abonniert hast.
-- Die **✕**-Schaltfläche setzt gleichzeitig den Suchtext und den Tag-Filter zurück.
-- Suche, Sortierung, Tag und Abonniert-Filter bleiben erhalten, solange die App offen ist – springt eine Installation zum Aktivierungs-Tab, landest du beim Zurückwechseln wieder in derselben gefilterten Liste.
+- Die **✕**-Schaltfläche setzt Suchtext, Tag-Filter und Abonniert-Filter zurück. Deine gewählte Sortierung bleibt.
+- Suche, Sortierung, Tag und Abonniert-Filter bleiben erhalten, solange die App offen ist – springt eine Installation zum Aktivierungs-Tab, landest du beim Zurückwechseln wieder in derselben Liste, inklusive der mit **+ Weitere Mods laden** nachgeladenen Seiten und deiner Scroll-Position.
 - **Fehlende installieren (N)** – erscheint neben dem Ergebniszähler, wenn du auf mod.io (z. B. über die Webseite) Mods abonniert hast, die noch nicht installiert sind. Ein Klick listet sie auf und lädt und installiert dann alle in einem Rutsch: ein Fortschrittsfenster, eine Schaltfläche **Nach dieser Mod anhalten** und am Ende eine einzige Zusammenfassung. Fehlende benötigte Mods werden mitinstalliert, neue Mods gemäß deinen Einstellungen aktiviert, und eine Mod, deren Ordner schon existiert, bleibt unangetastet und wird nur mit ihrem mod.io-Eintrag verknüpft.
 
 #### Mod-Kacheln

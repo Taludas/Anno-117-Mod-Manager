@@ -190,7 +190,7 @@ The primary tab for managing which mods are active when you launch the game.
 #### Sorting & Filtering
 
 - Click the ✔️ / **Category** / **Mod Name** column headers to sort. Category supports A→Z, Z→A and off.
-- Use the **search bar** to filter by name or category. The list filters as you type, from the first letter.
+- Use the **search bar** to filter by name or category. The list filters as you type, from the first letter. It also finds mods by their English name, ModID, author and folder name, so e.g. "commuter pier" finds a mod that is shown under its German name.
 - Ticking or unticking a mod moves it straight to the Active or Deactivated group; the rest of the list stays where it is.
 - **↻ Refresh** re-reads all mods from disk, re-measures folder sizes and updates the missing-dependency and conflict warnings. Use it after changing mod files outside the app, or to update warnings after ticking mods.
 - **Activate All** resets the profile so every installed mod is active.
@@ -235,11 +235,11 @@ Browse and install mods directly from mod.io without leaving the app. Requires a
 #### Search & Filters
 
 - **Search bar** - full-text search against the mod.io catalogue. Results trigger automatically after three characters.
-- **Sort** - Most Downloads, Alphabetical, Newest, Highest Rating, Author.
+- **Sort** - Most Downloads, Most Subscribers, Highest Rating, Trending, Newest, Last Updated, Alphabetical, Author. **Last Updated** is the default; whatever you pick is remembered, also after a restart.
 - **Tag filter** - dropdown populated from the game's tag list on mod.io; filter by any single tag.
 - **Subscribed** toggle - show only mods you are currently subscribed to.
-- The **✕** button resets both the search text and the tag filter simultaneously.
-- Search, sort, tag and Subscribed filter are kept while the app is open - after an install that jumps to the Activation tab, going back to the Mod Browser brings you back to the same filtered list.
+- The **✕** button resets the search text, the tag filter and the Subscribed filter. Your chosen sort stays.
+- Search, sort, tag and Subscribed filter are kept while the app is open - after an install that jumps to the Activation tab, going back to the Mod Browser brings you back to the same list, including the pages you loaded with **+ Load more mods** and your scroll position.
 - **Install missing (N)** - appears next to the result counter when you are subscribed to mods on mod.io (e.g. via the website) that are not installed yet. One click lists them, then downloads and installs all of them in one go: one progress window, a **Stop after this mod** button, and a single summary at the end. Missing required mods are installed too, new mods are activated according to your settings, and a mod whose folder already exists is left untouched and only linked to its mod.io entry.
 
 #### Mod Tiles
