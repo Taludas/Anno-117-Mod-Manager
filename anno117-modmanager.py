@@ -64,6 +64,70 @@ def _norm_mod_id(mod_id):
     return re.sub(r'[^a-z0-9]+', '-', str(mod_id).lower()).strip('-')
 
 
+def _safe_rel_parts(name):
+    """Path components of an archive-style name, with both '/' and '\\' as separators.
+    None if the name is absolute, has a drive letter or climbs out with '..'."""
+    name = name.replace("\\", "/")
+    if name.startswith("/") or re.match(r'^[A-Za-z]:', name):
+        return None
+    parts = [p for p in name.split("/") if p not in ("", ".")]
+    if any(p == ".." for p in parts):
+        return None
+    return parts
+
+
+def _extract_zip(zref, dest):
+    """Like ZipFile.extractall, but member names written with Windows backslashes become real
+    folders on every OS. Python's zipfile only splits on '/' outside Windows, so 'mod\\data\\x.fx'
+    would land as one file with backslashes in its name - which the game cannot read under
+    Proton and crashes on while scanning its mod folders. Unsafe names are skipped."""
+    dest = os.path.abspath(dest)
+    for info in zref.infolist():
+        parts = _safe_rel_parts(info.filename)
+        if not parts:
+            continue
+        target = os.path.join(dest, *parts)
+        if info.filename.endswith(("/", "\\")):
+            os.makedirs(target, exist_ok=True)
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with zref.open(info) as src, open(target, "wb") as out:
+            shutil.copyfileobj(src, out)
+
+
+def _repair_backslash_names(base):
+    """Turns files and folders whose names contain backslashes (left behind by older installs of
+    Windows-made zips) back into the folder tree they stand for. Empty 'dir\\' marker files are
+    removed. Nothing is overwritten. Returns the number of entries repaired. No-op on Windows,
+    where a backslash cannot be part of a name."""
+    if os.sep == "\\" or not os.path.isdir(base):
+        return 0
+    repaired = 0
+    for root, dirs, files in os.walk(base, topdown=False):
+        for name in files + dirs:
+            if "\\" not in name:
+                continue
+            src = os.path.join(root, name)
+            parts = _safe_rel_parts(name)
+            if not parts:
+                continue
+            target = os.path.join(root, *parts)
+            try:
+                if name.endswith("\\") and os.path.isfile(src) and os.path.getsize(src) == 0:
+                    os.makedirs(target, exist_ok=True)
+                    os.remove(src)
+                elif not os.path.exists(target):
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    shutil.move(src, target)
+                else:
+                    print(f"Not repairing {src}: {target} already exists")
+                    continue
+                repaired += 1
+            except OSError as e:
+                print(f"Error repairing {src}: {e}")
+    return repaired
+
+
 def _fmt_num(v):
     """Format a number for slider display: comma-separated integers or compact sci-notation (e.g. 2.4e5)."""
     v = float(v)
@@ -1228,7 +1292,15 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             search_paths.append(self.mod_path)
 
         seen_folders = set()
+        repaired_bases = getattr(self, '_backslash_repaired_bases', None)
+        if repaired_bases is None:
+            repaired_bases = self._backslash_repaired_bases = set()
         for base in search_paths:
+            if base not in repaired_bases:
+                repaired_bases.add(base)
+                count = _repair_backslash_names(base)
+                if count:
+                    print(f"Repaired {count} backslash file name(s) in {base}")
             try:
                 for entry in os.scandir(base):
                     if entry.is_dir() and not entry.name.startswith(".") and not entry.name.startswith("-"):
@@ -1807,7 +1879,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
                     shutil.rmtree(final_destination)
 
                 temp_extract = os.path.join(target_base_dir, "_temp_ext")
-                zref.extractall(temp_extract)
+                _extract_zip(zref, temp_extract)
                 actual_mod_src = os.path.join(temp_extract, mod_internal_path)
 
                 os.makedirs(target_base_dir, exist_ok=True)
@@ -1887,7 +1959,7 @@ class AnnoModManagerApp(TkinterDnD.Tk):
             shutil.rmtree(temp_extract, ignore_errors=True)
         installed = []   # (folder name, ModID or None)
         try:
-            zref.extractall(temp_extract)
+            _extract_zip(zref, temp_extract)
             for mod_dir in mod_dirs:
                 folder_name = os.path.basename(mod_dir)
                 final_destination = os.path.join(target_base_dir, folder_name)
